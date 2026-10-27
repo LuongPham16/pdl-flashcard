@@ -1,0 +1,39 @@
+{
+  "name": "pdl-flashcard",
+  "version": "1.0.0",
+  "description": "AI-assisted flashcards inside Obsidian: generate decks from notes or highlighted text, review with adaptive scheduling.",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/build.js --watch",
+    "build": "node scripts/build.js",
+    "build:prod": "node scripts/build.js --production",
+    "deploy": "node scripts/build.js --production --deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "test:inproc": "node --test --test-isolation=none tests/*.test.mjs",
+    "lint": "eslint src tests",
+    "version": "node scripts/sync-version.js && git add manifest.json versions.json",
+    "prepare:release": "npm run build:prod && npm test"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "flashcards",
+    "spaced-repetition",
+    "anki",
+    "ai"
+  ],
+  "author": "PDL",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.28.0",
+    "eslint": "^9.0.0",
+    "obsidian": "^1.8.10",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Verify manifest matches package version
+        run: |
+          node -e '
+            const pkg = require("./package.json");
+            const manifest = require("./manifest.json");
+            const versions = require("./versions.json");
+            if (pkg.version !== manifest.version) {
+              console.error(`version mismatch: package.json ${pkg.version} vs manifest.json ${manifest.version}`);
+              process.exit(1);
+            }
+            if (!versions[manifest.version]) {
+              console.error(`versions.json has no entry for ${manifest.version}`);
+              process.exit(1);
+            }
+            console.log(`versions consistent at ${manifest.version}`);
+          '

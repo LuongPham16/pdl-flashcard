@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Production build
+        run: npm run build:prod
+
+      - name: Run tests
+        run: npm test
+
+      - name: Verify the tag matches manifest.json
+        run: |
+          node -e '
+            const manifest = require("./manifest.json");
+            const tag = process.env.GITHUB_REF_NAME.replace(/^v/, "");
+            if (tag !== manifest.version) {
+              console.error(`tag ${tag} does not match manifest version ${manifest.version}`);
+              process.exit(1);
+            }
+          '
+
+      # Obsidian requires main.js, manifest.json and styles.css as individual
+      # release assets (no zip), with the tag matching the manifest version.
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/main.js
+            dist/manifest.json
+            dist/styles.css
+          generate_release_notes: true
