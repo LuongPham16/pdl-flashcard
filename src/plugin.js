@@ -9,6 +9,7 @@ import { Plugin, Notice, setIcon, normalizePath } from "obsidian";
 import { VIEW_TYPE, AI_FORMAT_RULES, DEFAULT_AI_PROMPTS, DEFAULTS } from "./constants.js";
 import { formatRichInline } from "./formatting.js";
 import { normalizeCardText } from "./utils.js";
+import { setLanguage, L } from "./i18n.js";
 import { StorageMethods } from "./storage.js";
 import { ReviewMethods } from "./review.js";
 import { AiMethods } from "./ai.js";
@@ -35,6 +36,8 @@ class PDLFlashcardPlugin extends Plugin {
     this.settings.streakDates ||= [];
     this.settings.aiPrompts ||= DEFAULT_AI_PROMPTS;
     this.settings.selectedPromptId ||= "default";
+    this.settings.language = this.settings.language === "vi" ? "vi" : "en";
+    this.settings.decksPerPage = Math.max(1, Math.min(50, Number(this.settings.decksPerPage) || 5));
 
     // Older versions shipped built-in prompts without the output-format rules,
     // which is what made AI cards arrive with broken spacing and unformatted code.
@@ -63,29 +66,30 @@ class PDLFlashcardPlugin extends Plugin {
     if (legacyAi.model && !this.settings.ai.models.openai) {
       this.settings.ai.models.openai = legacyAi.model;
     }
+    this.applyLanguage();
     await this.ensureOutputFolder();
     this.registerView(VIEW_TYPE, leaf => new PDLFlashcardView(leaf, this));
-    this.addRibbonIcon("brain-circuit", "Open PDL Flashcard", () => this.activateView());
-    this.addCommand({ id: "open", name: "Open learning dashboard", callback: () => this.activateView() });
-    this.addCommand({ id: "quick-review", name: "Start quick review", callback: async () => {
+    this.addRibbonIcon("brain-circuit", L("Open PDL Flashcard", "Mở PDL Flashcard"), () => this.activateView());
+    this.addCommand({ id: "open", name: L("Open learning dashboard", "Mở bảng điều khiển học tập"), callback: () => this.activateView() });
+    this.addCommand({ id: "quick-review", name: L("Start quick review", "Bắt đầu ôn nhanh"), callback: async () => {
       await this.activateView();
       const view = this.getView();
       if (view) view.startSession();
     }});
-    this.addCommand({ id: "custom-study", name: "Custom study session", callback: async () => {
+    this.addCommand({ id: "custom-study", name: L("Custom study session", "Phiên ôn tùy chọn"), callback: async () => {
       await this.activateView();
       const view = this.getView();
       if (view) new FlashcardCustomStudyModal(this.app, this, view).open();
     }});
-    this.addCommand({ id: "import-export", name: "Import or export flashcards", callback: () => new FlashcardExportImportModal(this.app, this).open() });
-    this.addCommand({ id: "create-deck", name: "Create flashcards from a note", callback: () => new FlashcardStudioModal(this.app, this).open() });
-    this.addCommand({ id: "create-deck-active-note", name: "Create flashcards from active note", checkCallback: checking => {
+    this.addCommand({ id: "import-export", name: L("Import or export flashcards", "Nhập hoặc xuất flashcard"), callback: () => new FlashcardExportImportModal(this.app, this).open() });
+    this.addCommand({ id: "create-deck", name: L("Create flashcards from a note", "Tạo flashcard từ một note"), callback: () => new FlashcardStudioModal(this.app, this).open() });
+    this.addCommand({ id: "create-deck-active-note", name: L("Create flashcards from active note", "Tạo flashcard từ note đang mở"), checkCallback: checking => {
       const file = this.app.workspace.getActiveFile();
       if (!this.isEligibleSource(file)) return false;
       if (!checking) new FlashcardStudioModal(this.app, this, file).open();
       return true;
     }});
-    this.addCommand({ id: "open-or-create-active-note", name: "Open or create flashcards for active note", hotkeys: [{ modifiers: ["Mod", "Alt"], key: "k" }], checkCallback: checking => {
+    this.addCommand({ id: "open-or-create-active-note", name: L("Open or create flashcards for active note", "Mở hoặc tạo flashcard cho note đang mở"), hotkeys: [{ modifiers: ["Mod", "Alt"], key: "k" }], checkCallback: checking => {
       const file = this.app.workspace.getActiveFile();
       if (!this.isEligibleSource(file)) return false;
       if (!checking) void this.openOrCreateForNote(file);
@@ -93,35 +97,35 @@ class PDLFlashcardPlugin extends Plugin {
     }});
     this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {
       if (!this.isEligibleSource(file)) return;
-      menu.addItem(item => item.setTitle("Open or create flashcards").setIcon("brain-circuit").onClick(() => void this.openOrCreateForNote(file)));
+      menu.addItem(item => item.setTitle(L("Open or create flashcards", "Mở hoặc tạo flashcard")).setIcon("brain-circuit").onClick(() => void this.openOrCreateForNote(file)));
     }));
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor, view) => {
       const file = view?.file;
       if (!this.isEligibleSource(file)) return;
-      menu.addItem(item => item.setTitle("Open or create flashcards").setIcon("brain-circuit").onClick(() => void this.openOrCreateForNote(file)));
+      menu.addItem(item => item.setTitle(L("Open or create flashcards", "Mở hoặc tạo flashcard")).setIcon("brain-circuit").onClick(() => void this.openOrCreateForNote(file)));
       const rawSelection = editor?.getSelection?.() || "";
       const selectedText = normalizeCardText(rawSelection);
       if (!selectedText.trim()) return;
-      menu.addItem(item => item.setTitle("Tạo flashcard AI từ đoạn bôi đen").setIcon("sparkles")
+      menu.addItem(item => item.setTitle(L("Create AI flashcards from selection", "Tạo flashcard AI từ đoạn bôi đen")).setIcon("sparkles")
         .onClick(() => new FlashcardSelectionAIModal(this.app, this, file, selectedText).open()));
     }));
-    this.addCommand({ id: "ai-from-selection", name: "Generate flashcards from selected text", checkCallback: checking => {
+    this.addCommand({ id: "ai-from-selection", name: L("Generate flashcards from selected text", "Tạo flashcard từ đoạn văn đang chọn"), checkCallback: checking => {
       const file = this.app.workspace.getActiveFile();
       const editor = this.app.workspace.activeEditor?.editor;
       if (!this.isEligibleSource(file) || !String(editor?.getSelection?.() || "").trim()) return false;
       if (!checking) new FlashcardSelectionAIModal(this.app, this, file, normalizeCardText(editor.getSelection())).open();
       return true;
     }});
-    this.addCommand({ id: "open-manager", name: "Open flashcard manager", callback: () => new FlashcardManagerModal(this.app, this).open() });
-    this.addCommand({ id: "open-statistics", name: "Open statistics dashboard", callback: () => new FlashcardStatisticsModal(this.app, this).open() });
+    this.addCommand({ id: "open-manager", name: L("Open flashcard manager", "Mở trình quản lý flashcard"), callback: () => new FlashcardManagerModal(this.app, this).open() });
+    this.addCommand({ id: "open-statistics", name: L("Open statistics dashboard", "Mở bảng thống kê"), callback: () => new FlashcardStatisticsModal(this.app, this).open() });
     this.registerMarkdownCodeBlockProcessor("pdl-flashcards", (source, el) => {
       try {
         const deck = JSON.parse(source);
         const box = el.createDiv({ cls: "pdl-deck-preview" });
-        box.createEl("strong", { text: deck.title || "PDL Flashcard deck" });
-        box.createEl("p", { text: `${Array.isArray(deck.cards) ? deck.cards.length : 0} questions · source: ${deck.sourcePath || "unknown"}` });
-        const open = box.createEl("button", { text: "Open PDL Flashcard" }); open.onclick = () => this.activateView();
-      } catch (_) { el.createEl("code", { text: "Invalid flashcard data." }); }
+        box.createEl("strong", { text: deck.title || L("PDL Flashcard deck", "Bộ thẻ PDL Flashcard") });
+        box.createEl("p", { text: L(`${Array.isArray(deck.cards) ? deck.cards.length : 0} questions · source: ${deck.sourcePath || "unknown"}`, `${Array.isArray(deck.cards) ? deck.cards.length : 0} câu hỏi · nguồn: ${deck.sourcePath || "không rõ"}`) });
+        const open = box.createEl("button", { text: L("Open PDL Flashcard", "Mở PDL Flashcard") }); open.onclick = () => this.activateView();
+      } catch (_) { el.createEl("code", { text: L("Invalid flashcard data.", "Dữ liệu flashcard không hợp lệ.") }); }
     });
     this.addSettingTab(new PDLFlashcardSettingTab(this.app, this));
     await this.saveData(this.settings);
@@ -164,20 +168,23 @@ class PDLFlashcardPlugin extends Plugin {
   }
 
   async openOrCreateForNote(file) {
-    if (!this.isEligibleSource(file)) { new Notice("Open a Markdown source note first."); return; }
+    if (!this.isEligibleSource(file)) { new Notice(L("Open a Markdown source note first.", "Hãy mở một note Markdown nguồn trước.")); return; }
     const cards = (await this.getCards()).filter(card => card.sourcePath === file.path);
     if (!cards.length) { new FlashcardStudioModal(this.app, this, file).open(); return; }
     await this.activateView();
     const view = this.getView();
-    if (!view) { new Notice("Could not open PDL Flashcard."); return; }
+    if (!view) { new Notice(L("Could not open PDL Flashcard.", "Không thể mở PDL Flashcard.")); return; }
     await view.refresh();
     const linkedCards = view.cards.filter(card => card.sourcePath === file.path);
     if (!linkedCards.length) { new FlashcardStudioModal(this.app, this, file).open(); return; }
     view.startSession(linkedCards);
-    new Notice(`Opened ${linkedCards.length} flashcards for ${file.basename}.`);
+    new Notice(L(`Opened ${linkedCards.length} flashcards for ${file.basename}.`, `Đã mở ${linkedCards.length} flashcard cho ${file.basename}.`));
   }
 
   onunload() { this.app.workspace.detachLeavesOfType(VIEW_TYPE); }
+
+  /** Apply `settings.language` to the module-level UI language. */
+  applyLanguage() { setLanguage(this.settings.language); }
 
   getView() {
     const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0];

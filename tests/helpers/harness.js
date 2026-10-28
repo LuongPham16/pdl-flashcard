@@ -329,6 +329,7 @@ export async function createView(plugin, settings = {}) {
   plugin.autoBackup = async () => {};
   await plugin.onload();
   Object.assign(plugin.settings, settings);
+  plugin.applyLanguage?.();
   const view = new ViewClass({ app: plugin.app }, plugin);
   await view.onOpen();
   return view;

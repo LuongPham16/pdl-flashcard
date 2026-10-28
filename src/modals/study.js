@@ -8,6 +8,7 @@ import {
   wireCodeToggles
 } from "../formatting.js";
 import { normalizeCardText } from "../utils.js";
+import { L } from "../i18n.js";
 
 class FlashcardCustomStudyModal extends Modal {
   constructor(app, plugin, view) {
@@ -28,17 +29,17 @@ class FlashcardCustomStudyModal extends Modal {
   render() {
     const root = this.contentEl;
     root.empty();
-    root.createSpan({ cls: "pdl-edit-kicker", text: "CUSTOM STUDY SESSION" });
-    root.createEl("h2", { text: "Focus Learning & Cramming" });
-    root.createEl("p", { cls: "pdl-edit-context", text: "Review cards flexibly outside normal Spaced Repetition limits." });
+    root.createSpan({ cls: "pdl-edit-kicker", text: L("CUSTOM STUDY SESSION", "PHIÊN ÔN TÙY CHỌN") });
+    root.createEl("h2", { text: L("Focus Learning & Cramming", "Học tập trung & luyện nhanh") });
+    root.createEl("p", { cls: "pdl-edit-context", text: L("Review cards flexibly outside normal Spaced Repetition limits.", "Ôn thẻ linh hoạt, không giới hạn bởi lịch lặp lại ngắt quãng.") });
 
     const modeLabel = root.createEl("label", { cls: "pdl-editor-field" });
-    modeLabel.createSpan({ text: "Study Mode" });
+    modeLabel.createSpan({ text: L("Study Mode", "Chế độ ôn") });
     const modeSelect = modeLabel.createEl("select", { cls: "pdl-edit-type" });
     [
-      ["cram_all", "Cram All Cards (Ignore Due dates)"],
-      ["lapsed", "Difficult Cards (Lapses > 0)"],
-      ["by_tag", "Filter by Tag"]
+      ["cram_all", L("Cram All Cards (Ignore Due dates)", "Luyện toàn bộ (bỏ qua ngày đến hạn)")],
+      ["lapsed", L("Difficult Cards (Lapses > 0)", "Thẻ khó (đã quên > 0 lần)")],
+      ["by_tag", L("Filter by Tag", "Lọc theo tag")]
     ].forEach(([val, label]) => modeSelect.createEl("option", { text: label, attr: { value: val } }));
     modeSelect.value = this.mode;
     modeSelect.onchange = () => { this.mode = modeSelect.value; this.render(); };
@@ -47,18 +48,18 @@ class FlashcardCustomStudyModal extends Modal {
       const allTags = new Set();
       this.cards.forEach(c => (c.tags || []).forEach(t => allTags.add(t)));
       const tagLabel = root.createEl("label", { cls: "pdl-editor-field" });
-      tagLabel.createSpan({ text: "Select Tag" });
+      tagLabel.createSpan({ text: L("Select Tag", "Chọn tag") });
       const tagSelect = tagLabel.createEl("select", { cls: "pdl-edit-type" });
-      tagSelect.createEl("option", { text: "— Choose a tag —", attr: { value: "" } });
+      tagSelect.createEl("option", { text: L("— Choose a tag —", "— Chọn một tag —"), attr: { value: "" } });
       [...allTags].sort().forEach(t => tagSelect.createEl("option", { text: `#${t}`, attr: { value: t } }));
       tagSelect.value = this.selectedTag;
       tagSelect.onchange = () => { this.selectedTag = tagSelect.value; };
     }
 
     const deckLabel = root.createEl("label", { cls: "pdl-editor-field" });
-    deckLabel.createSpan({ text: "Deck Scope" });
+    deckLabel.createSpan({ text: L("Deck Scope", "Phạm vi deck") });
     const deckSelect = deckLabel.createEl("select", { cls: "pdl-edit-type" });
-    deckSelect.createEl("option", { text: "All Decks in Vault", attr: { value: "" } });
+    deckSelect.createEl("option", { text: L("All Decks in Vault", "Tất cả deck trong vault"), attr: { value: "" } });
     const decks = new Map();
     this.cards.forEach(c => decks.set(c.file.path, c.deckTitle));
     [...decks.entries()].forEach(([path, title]) => deckSelect.createEl("option", { text: title, attr: { value: path } }));
@@ -66,9 +67,9 @@ class FlashcardCustomStudyModal extends Modal {
     deckSelect.onchange = () => { this.selectedDeckPath = deckSelect.value; };
 
     const footer = root.createDiv({ cls: "pdl-edit-footer" });
-    const cancel = footer.createEl("button", { text: "Cancel" });
+    const cancel = footer.createEl("button", { text: L("Cancel", "Hủy") });
     cancel.onclick = () => this.close();
-    const start = footer.createEl("button", { cls: "mod-cta", text: "Start Custom Session" });
+    const start = footer.createEl("button", { cls: "mod-cta", text: L("Start Custom Session", "Bắt đầu phiên tùy chọn") });
     start.onclick = () => {
       let pool = this.cards;
       if (this.selectedDeckPath) {
@@ -77,12 +78,12 @@ class FlashcardCustomStudyModal extends Modal {
       if (this.mode === "lapsed") {
         pool = pool.filter(c => (this.plugin.settings.schedule[c.id]?.lapses || 0) > 0);
       } else if (this.mode === "by_tag") {
-        if (!this.selectedTag) { new Notice("Please select a tag first."); return; }
+        if (!this.selectedTag) { new Notice(L("Please select a tag first.", "Hãy chọn một tag trước.")); return; }
         pool = pool.filter(c => (c.tags || []).includes(this.selectedTag));
       }
 
       if (!pool.length) {
-        new Notice("No cards match your selected criteria.");
+        new Notice(L("No cards match your selected criteria.", "Không có thẻ nào khớp tiêu chí đã chọn."));
         return;
       }
 

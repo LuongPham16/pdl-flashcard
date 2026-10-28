@@ -146,6 +146,25 @@ test("normalizeCard drops empty cards, derives cloze answers and degrades broken
   assert.deepEqual(messy.tags, ["tag"]);
 });
 
+test("decomposed Vietnamese text is normalized to NFC on read and save", async () => {
+  const plugin = makePlugin(PluginClass, stub);
+  const nfd = "nguồn".normalize("NFD");
+  seedDeck(plugin, `${OUTPUT}/nfd.md`, {
+    sourcePath: "inbox/src.md",
+    cards: [{ id: "nfd", question: `scp <${nfd}> <đích>`, answer: `Từ ${nfd}`, explanation: `Giải thích ${nfd}` }]
+  });
+  const cards = await plugin.getCards();
+  assert.equal(cards[0].question, "scp <nguồn> <đích>");
+  assert.equal(cards[0].answer, "Từ nguồn");
+  assert.equal(cards[0].explanation, "Giải thích nguồn");
+  assert.doesNotMatch(cards[0].question, /\p{M}/u, "no combining marks left");
+
+  const normalized = plugin.normalizeCard({ question: `${nfd}?`, answer: `${nfd}`, explanation: `${nfd}`, tags: [nfd] }, "new");
+  assert.equal(normalized.question, "nguồn?");
+  assert.equal(normalized.answer, "nguồn");
+  assert.deepEqual(normalized.tags, ["nguồn"]);
+});
+
 test("createDeck writes frontmatter, sanitises the filename and honours the folder", async () => {
   const plugin = makePlugin(PluginClass, stub);
   plugin.app.vault.files.set("inbox/a.md", "# A");

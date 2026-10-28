@@ -34,6 +34,7 @@ async function boot(files = { "inbox/src.md": "# Source" }, settings = {}) {
   plugin.autoBackup = async () => {};
   await plugin.onload();
   Object.assign(plugin.settings, settings);
+  plugin.applyLanguage?.();
   stub.openedModals.length = 0;
   return { app, plugin, commands, lastModal: () => stub.openedModals.at(-1) };
 }
@@ -268,6 +269,33 @@ test("studio appends to the deck already linked to the source note", async () =>
   assert.equal(app.vault.files.has(`${OUTPUT}/existing.md`), true, "no duplicate deck created");
 });
 
+test("studio truncates a long deck name in the save button and keeps a tooltip", async () => {
+  const { app, commands, lastModal } = await boot();
+  const longName = "A very long deck name that should never widen the footer";
+  const create = commands["create-deck-active-note"];
+  app.workspace.activeFile = app.vault.getAbstractFileByPath("inbox/src.md");
+  create.checkCallback(false);
+  const modal = lastModal();
+  modal.deckScanStarted = true;
+  modal.targetDeckFile = { path: `${OUTPUT}/${longName}.md`, basename: longName };
+  modal.render();
+
+  const save = buttonByText(modal.contentEl, "Add to");
+  assert.ok(save, "append button rendered");
+  assert.match(textOf(save), /…$/, "deck name truncated");
+  assert.ok(textOf(save).length <= "Add to ".length + 28, "button stays compact");
+  assert.equal(save.attrs.title, `Add to ${longName}`, "full name kept in the tooltip");
+});
+
+test("dialogs follow the selected language", async () => {
+  const { app, commands, lastModal } = await boot({ "inbox/src.md": "# Source" }, { language: "vi" });
+  seedDeck(app, "deck", basicCards("c", 1));
+  await commands["open-manager"].callback();
+  assert.match(textOf(lastModal().contentEl), /Quản lý flashcard/);
+  await commands["open-statistics"].callback();
+  assert.match(textOf(lastModal().contentEl), /Bảng thống kê/);
+});
+
 test("selection dialog detects an existing deck and reports a new one otherwise", async () => {
   const { app, commands, lastModal } = await boot();
   seedDeck(app, "linked", [{ id: "l", question: "Q", answer: "A" }], "inbox/src.md");
@@ -280,13 +308,13 @@ test("selection dialog detects an existing deck and reports a new one otherwise"
   const modal = lastModal();
   assert.equal(modal.selectedText, "The selected passage.");
   assert.equal(modal.targetDeckFile.path, `${OUTPUT}/linked.md`);
-  assert.match(textOf(modal.contentEl), /đã có deck "linked"/);
-  assert.match(textOf(modal.contentEl), /21 ký tự được bôi đen/);
+  assert.match(textOf(modal.contentEl), /already has the deck "linked"/);
+  assert.match(textOf(modal.contentEl), /21 characters selected/);
 
   app.vault.files.delete(`${OUTPUT}/linked.md`);
   command.checkCallback(false);
   await tick();
-  assert.match(textOf(lastModal().contentEl), /một deck mới sẽ được tạo/);
+  assert.match(textOf(lastModal().contentEl), /a new deck will be created/);
 });
 
 test("selection dialog hands the excerpt to the studio without auto-running AI", async () => {

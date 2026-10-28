@@ -44,6 +44,12 @@ spaced repetition.
 - Global card manager with search, type filter, edit, suspend, delete.
 - CSV/JSON import and export; automatic `data.json` backups.
 
+**Interface**
+
+- English and Vietnamese UI, switchable in *Settings → PDL Flashcard → Appearance*
+  (English by default). Commands, dialogs and notices follow the choice immediately.
+- Configurable *Decks per page* for the dashboard library (1–50, default 5).
+
 ## Install
 
 ### From a release (recommended)

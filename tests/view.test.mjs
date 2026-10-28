@@ -188,7 +188,7 @@ test("Again re-queues a card up to the configured limit", async () => {
   assert.equal(view.session.length, 3, "limit reached, no third copy");
   assert.equal(view.index, 3);
   assert.deepEqual(view.grades, [1, 1, 1]);
-  assert.equal(stub.notices.filter(note => note.includes("quay lại")).length, 2);
+  assert.equal(stub.notices.filter(note => note.includes("will come back")).length, 2);
   assert.match(textOf(view.containerEl), /You recalled 0 of 3 cards/);
 });
 
@@ -252,7 +252,7 @@ test("undo with an empty stack only reports it", async () => {
   stub.notices.length = 0;
   view.undoStack = [];
   await view.undoLastGrade();
-  assert.ok(stub.notices.some(note => note.includes("hoàn tác")));
+  assert.ok(stub.notices.some(note => note.includes("nothing left to undo")));
 });
 
 test("keyboard: space reveals, 1-4 grades, Ctrl+Z undoes, inputs are ignored", async () => {
@@ -306,4 +306,118 @@ test("renderCardText prefers Obsidian's renderer and forwards the source path", 
   assert.match(box.innerHTML, /Hello/);
   assert.equal(stub.renderedCalls.at(-1).sourcePath, "notes/a.md");
   assert.equal(box.classList.contains("pdl-rich"), true);
+  assert.match(box.style.fontFamily, /Times New Roman/);
+  assert.equal(box.style.fontKerning, "none");
+});
+
+test("a basic answer shows the answer label exactly once", async () => {
+  const { view } = await makeView();
+  view.session = [cardObj("basic")];
+  view.index = 0;
+  view.revealed = true;
+  view.undoStack = [];
+  view.renderReview();
+
+  const labels = view.containerEl.querySelectorAll(".pdl-section-label")
+    .filter(label => textOf(label) === "CORRECT ANSWER");
+  assert.equal(labels.length, 1, "no duplicate answer heading");
+  assert.equal(view.containerEl.querySelectorAll(".pdl-card-result").length, 0, "no empty result banner");
+});
+
+test("a multiple-choice answer keeps its status banner and answer heading", async () => {
+  const { view } = await makeView();
+  view.session = [cardObj("mcq", { type: "multiple-choice", choices: ["A", "B", "C", "D"], answer: "A" })];
+  view.index = 0;
+  view.revealed = true;
+  view.selectedChoice = "B";
+  view.undoStack = [];
+  view.renderReview();
+
+  const result = view.containerEl.querySelector(".pdl-card-result");
+  assert.ok(result, "result banner rendered");
+  assert.equal(textOf(result.querySelector(".pdl-card-result-status")), "NOT QUITE");
+  const rows = result.querySelectorAll(".pdl-mcq-row");
+  assert.equal(rows.length, 2, "one row for the choice and one for the answer");
+  assert.equal(textOf(rows[0]), "Your choice B");
+  assert.equal(rows[0].querySelector(".pdl-mcq-value").classList.contains("is-wrong"), true);
+  assert.equal(textOf(rows[1]), "Correct answer A");
+  assert.equal(rows[1].querySelector(".pdl-mcq-value").classList.contains("is-correct"), true);
+});
+
+test("the review source button uses a short label and keeps the full name in the tooltip", async () => {
+  const { view } = await makeView();
+  const noteName = "Git Pull Requests, Rebase And Merge Strategy Notes";
+  view.session = [cardObj("long-source", { sourceFile: { path: `inbox/${noteName}.md`, basename: noteName } })];
+  view.index = 0;
+  view.revealed = false;
+  view.undoStack = [];
+  view.renderReview();
+
+  const button = view.containerEl.querySelector(".pdl-source-button");
+  assert.ok(button, "source button rendered");
+  assert.equal(textOf(button), "Open note");
+  assert.equal(button.attrs.title, noteName, "full note name kept as a tooltip");
+  assert.equal(button.attrs["aria-label"], `Open ${noteName}`);
+});
+
+test("renderCardText normalizes decomposed Vietnamese before the Markdown pass", async () => {
+  const { view } = await makeView();
+  const decomposed = "nguồn".normalize("NFD");
+  const box = new El("div");
+  await view.renderCardText(box, `scp <${decomposed}> <đích>`, { inline: true });
+  const markdown = stub.renderedCalls.at(-1).markdown;
+  assert.equal(markdown, "scp <nguồn> <đích>");
+  assert.doesNotMatch(markdown, /\p{M}/u);
+});
+
+test("switching to Vietnamese translates the review UI", async () => {
+  const { plugin, view } = await makeView({ language: "vi" });
+  view.session = [cardObj("vi", { sourceFile: { path: "inbox/note.md", basename: "note" } })];
+  view.index = 0;
+  view.revealed = true;
+  view.undoStack = [];
+  view.renderReview();
+
+  const label = view.containerEl.querySelectorAll(".pdl-section-label")
+    .find(item => textOf(item) === "ĐÁP ÁN CHÍNH XÁC");
+  assert.ok(label, "Vietnamese answer heading");
+  assert.equal(textOf(view.containerEl.querySelector(".pdl-source-button")), "Mở note");
+
+  plugin.settings.language = "en";
+  plugin.applyLanguage();
+  view.renderReview();
+  assert.ok(view.containerEl.querySelectorAll(".pdl-section-label")
+    .some(item => textOf(item) === "CORRECT ANSWER"), "English heading after switching back");
+  assert.equal(textOf(view.containerEl.querySelector(".pdl-source-button")), "Open note");
+});
+
+test("decksPerPage controls how many decks the library shows", async () => {
+  const files = { "inbox/src.md": "# Source" };
+  for (let i = 1; i <= 12; i++) {
+    files[`06 - Flashcards/deck-${String(i).padStart(2, "0")}.md`] =
+      `\`\`\`pdl-flashcards\n${JSON.stringify({ sourcePath: "inbox/src.md", cards: [{ id: `d${i}`, question: `Q${i}`, answer: `A${i}` }] })}\n\`\`\``;
+  }
+  const ten = await makeView({ decksPerPage: 10 }, files);
+  assert.equal(ten.view.containerEl.querySelectorAll(".pdl-topic-row").length, 10);
+  assert.match(textOf(ten.view.containerEl), /Page 1 of 2/);
+
+  const five = await makeView({}, files);
+  assert.equal(five.view.containerEl.querySelectorAll(".pdl-topic-row").length, 5, "default stays 5");
+});
+
+test("a long folder name is truncated in the review chapter line", async () => {
+  const { view } = await makeView();
+  const folder = "A very long folder name that would otherwise push the layout";
+  const card = cardObj("long-folder");
+  card.file.parent = { name: folder };
+  view.session = [card];
+  view.index = 0;
+  view.revealed = false;
+  view.undoStack = [];
+  view.renderReview();
+
+  const strong = view.containerEl.querySelector(".pdl-review-chapter strong");
+  assert.match(textOf(strong), /…$/);
+  assert.ok(textOf(strong).length <= 32, "label stays inside the chapter line");
+  assert.equal(strong.attrs.title, folder);
 });

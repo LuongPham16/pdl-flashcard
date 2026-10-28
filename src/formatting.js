@@ -1,5 +1,6 @@
 /** Card text formatting: code blocks, inline values, cloze and speech. */
 import { Notice } from "obsidian";
+import { L } from "./i18n.js";
 import {
   normalizeCardText,
   formatRichText,
@@ -12,7 +13,7 @@ function escapeHtml(value) {
 }
 
 function codeToggleLabel(pre) {
-  return `Xem đủ ${pre.dataset.lines} dòng`;
+  return L(`Show all ${pre.dataset.lines} lines`, `Xem đủ ${pre.dataset.lines} dòng`);
 }
 
 
@@ -50,7 +51,7 @@ function wireCodeToggles(container) {
       if (!pre) return;
       const collapsed = pre.toggleClass("is-collapsed");
       applyCodeCollapse(pre);
-      button.setText(collapsed ? codeToggleLabel(pre) : "Thu gọn");
+      button.setText(collapsed ? codeToggleLabel(pre) : L("Collapse", "Thu gọn"));
       button.setAttr("aria-expanded", String(!collapsed));
     };
   });
@@ -105,7 +106,7 @@ function parseCloze(text) {
 
 function speakText(text) {
   if (!("speechSynthesis" in window)) {
-    new Notice("Text-to-speech is not supported in this environment.");
+    new Notice(L("Text-to-speech is not supported in this environment.", "Môi trường này không hỗ trợ đọc văn bản (TTS)."));
     return;
   }
   window.speechSynthesis.cancel();

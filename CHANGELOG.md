@@ -4,6 +4,39 @@ All notable changes to **PDL Flashcard** are recorded here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- The answer view no longer prints "ĐÁP ÁN CHÍNH XÁC" twice for basic and cloze cards;
+  the empty result banner is gone and only the answer section keeps the label.
+- The review bar now has five grid columns for its five controls. The source button
+  used to fall into the 46px first column on a second row, where a long note name was
+  clipped to a tiny box.
+- The review source button shows the short label **Open note** (or **Open deck**) and
+  keeps the full name in its tooltip; long folder names are truncated in the chapter line.
+- Long deck names are truncated in the Studio save button and the selection banner.
+- Vietnamese card text is normalized to Unicode **NFC** when it is saved, read back and
+  rendered. Decomposed accents from AI output/imports no longer look like stray marks or
+  gaps ("nguồn" instead of "nguo\u0302\u0300n"), and existing decks are fixed on load too.
+- The multiple-choice result banner now uses compact label/value rows ("Your choice"
+  and "Correct answer") instead of injecting block HTML into inline spans, which broke
+  the layout into scattered lines and empty boxes.
+- Card content now uses a Vietnamese-capable reading stack (Times New Roman first)
+  because Georgia has no Vietnamese glyphs on Windows. The font is also applied inline
+  to rendered card text with kerning disabled, so an older cached `styles.css` cannot
+  bring the broken fallback back.
+
+### Added
+
+- **Language setting (English / Tiếng Việt)** in *Settings → Appearance*. English is the
+  default; every screen, dialog, command, menu and notice switches language immediately.
+- **Decks per page** setting (1–50, default 5) for the dashboard library. The previous
+  fixed value of 5 is still the default.
+- Regression tests for the duplicate answer label, the source button tooltip, the
+  long-name truncation, both languages, the page-size setting, NFC normalization and the
+  inline reading font (111 tests total).
+
 ## [1.0.0] - 2026-10-28
 
 First public release. The version restarts at 1.0.0 for the open-source launch;

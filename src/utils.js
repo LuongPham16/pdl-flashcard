@@ -1,4 +1,5 @@
 /** Small pure helpers shared by the data layer and the UI. */
+import { L, getLanguage } from "./i18n.js";
 
 function dateKey(time = Date.now()) {
   const d = new Date(time);
@@ -6,7 +7,7 @@ function dateKey(time = Date.now()) {
 }
 
 function formatCount(value, compact = false) {
-  return new Intl.NumberFormat("en-US", compact ? { notation: "compact", maximumFractionDigits: 1 } : {}).format(value);
+  return new Intl.NumberFormat(getLanguage() === "vi" ? "vi-VN" : "en-US", compact ? { notation: "compact", maximumFractionDigits: 1 } : {}).format(value);
 }
 
 /** One-line, length-limited label for notices. */
@@ -40,9 +41,18 @@ function formatInlineMarkdown(text) {
  * prose while keeping code indentation, and never let stray indentation turn a
  * paragraph into a code block.
  */
+/**
+ * Unicode-only normalization (NFC). Vietnamese text from AI/import can arrive
+ * decomposed (base letter + separate accents); some fonts then render the accents
+ * as stray marks or gaps, which is exactly the "lỗi font" looking card.
+ */
+function nfcText(text) {
+  return String(text ?? "").normalize("NFC");
+}
+
 function normalizeCardText(text) {
   if (!text) return "";
-  return String(text)
+  return nfcText(text)
     .replace(/\r\n?/g, "\n")
     .replace(/[\u00a0\u2007\u202f]/g, " ")
     .replace(/[\u200b\u200c\u200d\ufeff\u200e\u200f]/g, "")
@@ -76,7 +86,7 @@ function codeHtml(code, options = {}) {
   const collapsible = options.collapsible !== false && newlines >= 2;
   const inner = `<pre class="${collapsible ? "is-collapsed" : "is-open"}" data-lines="${newlines + 1}"><code>${escapeHtml(value)}</code></pre>`;
   if (!collapsible) return `<div class="pdl-code">${inner}</div>`;
-  return `<div class="pdl-code"><div class="pdl-code-head"><button type="button" class="pdl-code-toggle" data-pdl-toggle="1" aria-expanded="false">Xem đủ ${newlines + 1} dòng</button></div>${inner}</div>`;
+  return `<div class="pdl-code"><div class="pdl-code-head"><button type="button" class="pdl-code-toggle" data-pdl-toggle="1" aria-expanded="false">${L(`Show all ${newlines + 1} lines`, `Xem đủ ${newlines + 1} dòng`)}</button></div>${inner}</div>`;
 }
 
 function formatProseLine(line) {
@@ -278,6 +288,7 @@ export {
   truncateLabel,
   cleanAndParseJSON,
   formatInlineMarkdown,
+  nfcText,
   normalizeCardText,
   collapseProseSpaces,
   formatProseLine,

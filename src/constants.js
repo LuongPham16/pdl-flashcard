@@ -53,6 +53,8 @@ ${AI_FORMAT_RULES}`
 
 const DEFAULTS = {
   schemaVersion: 3,
+  language: "en",
+  decksPerPage: 5,
   outputFolder: "06 - Flashcards",
   sourceFolders: ["00 - Inbox", "02 - Projects", "03 - Area", "04 - Journal", "05 - Tasks", "99 - Archive"],
   excludedFolders: ["99 - Archive/Templates", "99 - Archive/PDL-Templates", "_agent", "Decks Templates", "Canvas decks"],

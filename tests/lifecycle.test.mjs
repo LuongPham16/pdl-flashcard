@@ -19,8 +19,9 @@ async function boot({ saved = null, files = { "inbox/a.md": "# A" }, backup = fa
   const commands = [];
   const events = [];
   const processors = [];
+  const tabs = [];
   plugin.registerView = () => {};
-  plugin.addSettingTab = () => {};
+  plugin.addSettingTab = tab => tabs.push(tab);
   plugin.addRibbonIcon = () => {};
   plugin.registerEvent = handler => events.push(handler);
   plugin.registerMarkdownCodeBlockProcessor = (language, handler) => processors.push({ language, handler });
@@ -28,7 +29,7 @@ async function boot({ saved = null, files = { "inbox/a.md": "# A" }, backup = fa
   plugin.ensureOutputFolder = async () => {};
   if (!backup) plugin.autoBackup = async () => {};
   await plugin.onload();
-  return { app, plugin, commands, events, processors };
+  return { app, plugin, commands, events, processors, tabs };
 }
 
 test("onload migrates old settings and deep-merges the AI block", async () => {
@@ -48,6 +49,30 @@ test("onload migrates old settings and deep-merges the AI block", async () => {
   assert.equal(plugin.settings.ai.models.openai, "gpt-4o-mini", "default model map kept");
   assert.equal(plugin.settings.ai.endpoints.deepseek, "https://api.deepseek.com/chat/completions", "defaults preserved");
   assert.equal(plugin.settings.ai.apiKeys.gemini, "");
+});
+
+test("onload defaults to English and five decks per page", async () => {
+  const { plugin } = await boot();
+  assert.equal(plugin.settings.language, "en");
+  assert.equal(plugin.settings.decksPerPage, 5);
+});
+
+test("the settings tab renders and wires the language and page-size controls", async () => {
+  const { tabs, plugin } = await boot();
+  assert.equal(tabs.length, 1);
+  stub.Setting.instances.length = 0;
+  assert.doesNotThrow(() => tabs[0].display());
+
+  const language = stub.Setting.instances.find(setting => setting.controls.some(control => control.kind === "dropdown"));
+  assert.ok(language?.onChange, "language dropdown has a change handler");
+  await language.onChange("vi");
+  assert.equal(plugin.settings.language, "vi");
+  assert.equal(plugin.settings.decksPerPage, 5);
+
+  const pageSize = stub.Setting.instances.find(setting => setting.controls.some(control => control.kind === "slider" && control.api.setLimits));
+  assert.ok(pageSize?.onChange, "deck page-size slider has a change handler");
+  await pageSize.onChange(12);
+  assert.equal(plugin.settings.decksPerPage, 12);
 });
 
 test("onload upgrades built-in prompts with the formatting rules but leaves custom prompts alone", async () => {

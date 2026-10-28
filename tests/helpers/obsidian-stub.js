@@ -96,16 +96,32 @@ export class PluginSettingTab {
 }
 
 export class Setting {
-  constructor(containerEl) { this.containerEl = containerEl; }
+  static instances = [];
+  constructor(containerEl) { this.containerEl = containerEl; this.controls = []; Setting.instances.push(this); }
+
+  /** Chainable control API, like Obsidian's `Setting.addX(cb)` callback. */
+  control(kind, cb) {
+    const api = {};
+    for (const method of ["setValue", "setPlaceholder", "setButtonText", "setCta", "setLimits", "setDynamicTooltip", "addOption", "setIcon", "setTooltip"]) {
+      api[method] = () => api;
+    }
+    api.onChange = fn => { this.onChange = fn; return api; };
+    api.onClick = fn => { this.onClick = fn; return api; };
+    api.inputEl = document.createElement("input");
+    this.controls.push({ kind, api });
+    cb(api);
+    return this;
+  }
+
   setName() { return this; }
   setDesc() { return this; }
-  addText(cb) { cb({ setValue: () => this, setPlaceholder: () => this, onChange: () => this, inputEl: document.createElement("input") }); return this; }
-  addTextArea(cb) { cb({ setValue: () => this, setPlaceholder: () => this, onChange: () => this }); return this; }
-  addButton(cb) { cb({ setButtonText: () => this, setCta: () => this, onClick: () => this }); return this; }
-  addDropdown(cb) { cb({ addOption: () => this, setValue: () => this, onChange: () => this }); return this; }
-  addSlider(cb) { cb({ setLimits: () => this, setDynamicTooltip: () => this, setValue: () => this, onChange: () => this }); return this; }
-  addExtraButton(cb) { cb({ setIcon: () => this, setTooltip: () => this, onClick: () => this }); return this; }
-  addToggle(cb) { cb({ setValue: () => this, onChange: () => this }); return this; }
+  addText(cb) { return this.control("text", cb); }
+  addTextArea(cb) { return this.control("textarea", cb); }
+  addButton(cb) { return this.control("button", cb); }
+  addDropdown(cb) { return this.control("dropdown", cb); }
+  addSlider(cb) { return this.control("slider", cb); }
+  addExtraButton(cb) { return this.control("extra", cb); }
+  addToggle(cb) { return this.control("toggle", cb); }
 }
 
 export class Notice {

@@ -125,6 +125,19 @@ test("fenced JSON is cleaned, malformed content rejected and non-array cards ign
   assert.deepEqual(await plugin.requestAICards("body", { basic: 1 }, "preset"), [], "non-array cards treated as empty");
 });
 
+test("generated Vietnamese is normalized to NFC before it reaches a deck", async () => {
+  const plugin = makeAI();
+  const nfd = "nguồn".normalize("NFD");
+  replyWith(JSON.stringify({ cards: [{ question: `scp <${nfd}> <đích>`, answer: `Từ ${nfd}`, explanation: nfd, tags: [nfd], choices: [nfd, "B", "C", "D"] }] }));
+  const cards = await plugin.requestAICards("body", { basic: 1 }, "preset");
+  assert.equal(cards[0].question, "scp <nguồn> <đích>");
+  assert.equal(cards[0].answer, "Từ nguồn");
+  assert.equal(cards[0].explanation, "nguồn");
+  assert.deepEqual(cards[0].tags, ["nguồn"]);
+  assert.equal(cards[0].choices[0], "nguồn");
+  assert.doesNotMatch(cards[0].question, /\p{M}/u);
+});
+
 test("an empty provider response is an error", async () => {
   const plugin = makeAI();
   respond({ choices: [{ message: { content: "" } }] });

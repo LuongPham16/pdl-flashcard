@@ -1,12 +1,26 @@
 /** AI integration: prompt assembly and provider request layer. */
 import { requestUrl } from "obsidian";
 import { DEFAULT_AI_PROMPTS } from "./constants.js";
-import { cleanAndParseJSON } from "./utils.js";
+import { cleanAndParseJSON, normalizeCardText } from "./utils.js";
+import { L } from "./i18n.js";
+
+/** Normalize every generated card before it reaches a draft or a deck. */
+function normalizeGeneratedCards(cards) {
+  return (Array.isArray(cards) ? cards : []).map(card => {
+    const next = { ...card };
+    for (const key of ["question", "answer", "explanation"]) {
+      if (typeof next[key] === "string") next[key] = normalizeCardText(next[key]);
+    }
+    if (Array.isArray(next.choices)) next.choices = next.choices.map(choice => normalizeCardText(choice));
+    if (Array.isArray(next.tags)) next.tags = next.tags.map(tag => normalizeCardText(tag)).filter(Boolean);
+    return next;
+  });
+}
 
 /** Mixed into PDLFlashcardPlugin in plugin.js. */
 export class AiMethods {
   async generateWithAI(sourceFile, counts, promptId = "default", content = null) {
-    if (!sourceFile) throw new Error("Choose a source note first.");
+    if (!sourceFile) throw new Error(L("Choose a source note first.", "Hãy chọn một note nguồn trước."));
     const noteContent = typeof content === "string" ? content : await this.app.vault.cachedRead(sourceFile);
     return this.requestAICards(noteContent, counts, promptId);
   }
@@ -21,7 +35,7 @@ export class AiMethods {
    */
   async generateWithAIText(sourceFile, selectedText, counts, promptId = "default") {
     const selection = String(selectedText || "").trim();
-    if (!selection) throw new Error("Select the text you want to turn into flashcards first.");
+    if (!selection) throw new Error(L("Select the text you want to turn into flashcards first.", "Hãy chọn đoạn văn bạn muốn chuyển thành flashcard trước."));
     const intent = `The STUDY MATERIAL below is an excerpt the user highlighted inside the note "${sourceFile?.basename || "untitled"}".
 - Create cards for the highlighted excerpt only. Never use outside knowledge and never invent facts that are absent from it.
 - Write in the same language as the excerpt.
@@ -36,7 +50,7 @@ export class AiMethods {
     const endpoint = aiConfig.endpoints?.[provider] || aiConfig.endpoint;
     const model = aiConfig.models?.[provider] || aiConfig.model;
 
-    if (!apiKey) throw new Error(`Please configure the API key for ${provider} in Settings → PDL Flashcard.`);
+    if (!apiKey) throw new Error(L(`Please configure the API key for ${provider} in Settings → PDL Flashcard.`, `Hãy cấu hình API key cho ${provider} trong Cài đặt → PDL Flashcard.`));
 
     // Find selected prompt preset template
     const prompts = this.settings.aiPrompts || DEFAULT_AI_PROMPTS;
@@ -71,9 +85,9 @@ export class AiMethods {
       });
       
       const content = response.json?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!content) throw new Error("The Gemini API response did not contain valid content.");
+      if (!content) throw new Error(L("The Gemini API response did not contain valid content.", "Phản hồi API Gemini không có nội dung hợp lệ."));
       const parsed = cleanAndParseJSON(content);
-      return Array.isArray(parsed.cards) ? parsed.cards : [];
+      return normalizeGeneratedCards(parsed.cards);
 
     } else if (provider === "claude") {
       const actualEndpoint = endpoint || "https://api.anthropic.com/v1/messages";
@@ -95,9 +109,9 @@ export class AiMethods {
       });
 
       const content = response.json?.content?.[0]?.text;
-      if (!content) throw new Error("The Claude API response did not contain valid content.");
+      if (!content) throw new Error(L("The Claude API response did not contain valid content.", "Phản hồi API Claude không có nội dung hợp lệ."));
       const parsed = cleanAndParseJSON(content);
-      return Array.isArray(parsed.cards) ? parsed.cards : [];
+      return normalizeGeneratedCards(parsed.cards);
 
     } else {
       const actualEndpoint = endpoint || "https://api.openai.com/v1/chat/completions";
@@ -121,9 +135,9 @@ export class AiMethods {
       });
 
       const content = response.json?.choices?.[0]?.message?.content;
-      if (!content) throw new Error("The AI response did not contain valid content.");
+      if (!content) throw new Error(L("The AI response did not contain valid content.", "Phản hồi AI không có nội dung hợp lệ."));
       const parsed = cleanAndParseJSON(content);
-      return Array.isArray(parsed.cards) ? parsed.cards : [];
+      return normalizeGeneratedCards(parsed.cards);
     }
   }
 }

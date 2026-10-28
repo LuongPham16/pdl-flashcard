@@ -8,6 +8,7 @@ import {
   wireCodeToggles
 } from "../formatting.js";
 import { normalizeCardText } from "../utils.js";
+import { L } from "../i18n.js";
 
 class FlashcardExportImportModal extends Modal {
   constructor(app, plugin) {
@@ -27,16 +28,16 @@ class FlashcardExportImportModal extends Modal {
     root.empty();
     const head = root.createDiv({ cls: "pdl-manager-head" });
     const copy = head.createDiv();
-    copy.createSpan({ text: "DATA PORTABILITY" });
-    copy.createEl("h2", { text: "Import & Export Flashcards" });
-    copy.createEl("p", { text: "Export cards to CSV/JSON or import new cards from external sources." });
+    copy.createSpan({ text: L("DATA PORTABILITY", "XUẤT / NHẬP DỮ LIỆU") });
+    copy.createEl("h2", { text: L("Import & Export Flashcards", "Nhập & xuất flashcard") });
+    copy.createEl("p", { text: L("Export cards to CSV/JSON or import new cards from external sources.", "Xuất thẻ ra CSV/JSON hoặc nhập thẻ mới từ nguồn bên ngoài.") });
 
     const tabs = root.createDiv({ cls: "pdl-stats-ranges", attr: { style: "margin: 16px 0;" } });
-    const expBtn = tabs.createEl("button", { text: "Export Decks", attr: { "aria-pressed": String(this.activeTab === "export") } });
+    const expBtn = tabs.createEl("button", { text: L("Export Decks", "Xuất deck"), attr: { "aria-pressed": String(this.activeTab === "export") } });
     if (this.activeTab === "export") expBtn.addClass("is-active");
     expBtn.onclick = () => { this.activeTab = "export"; this.render(); };
 
-    const impBtn = tabs.createEl("button", { text: "Import Cards", attr: { "aria-pressed": String(this.activeTab === "import") } });
+    const impBtn = tabs.createEl("button", { text: L("Import Cards", "Nhập thẻ"), attr: { "aria-pressed": String(this.activeTab === "import") } });
     if (this.activeTab === "import") impBtn.addClass("is-active");
     impBtn.onclick = () => { this.activeTab = "import"; this.render(); };
 
@@ -49,31 +50,31 @@ class FlashcardExportImportModal extends Modal {
   }
 
   renderExport(parent) {
-    parent.createEl("h3", { text: "Export Flashcard Data" });
-    parent.createEl("p", { cls: "pdl-edit-context", text: `Total available cards in vault: ${this.cards.length}` });
+    parent.createEl("h3", { text: L("Export Flashcard Data", "Xuất dữ liệu flashcard") });
+    parent.createEl("p", { cls: "pdl-edit-context", text: L(`Total available cards in vault: ${this.cards.length}`, `Tổng số thẻ có trong vault: ${this.cards.length}`) });
 
     const formatLabel = parent.createEl("label", { cls: "pdl-editor-field" });
-    formatLabel.createSpan({ text: "Export Format" });
+    formatLabel.createSpan({ text: L("Export Format", "Định dạng xuất") });
     const formatSelect = formatLabel.createEl("select", { cls: "pdl-edit-type" });
-    formatSelect.createEl("option", { text: "CSV (Anki & Excel compatible)", attr: { value: "csv" } });
-    formatSelect.createEl("option", { text: "JSON (PDL Native format)", attr: { value: "json" } });
+    formatSelect.createEl("option", { text: L("CSV (Anki & Excel compatible)", "CSV (tương thích Anki & Excel)"), attr: { value: "csv" } });
+    formatSelect.createEl("option", { text: L("JSON (PDL Native format)", "JSON (định dạng gốc PDL)"), attr: { value: "json" } });
 
     const deckLabel = parent.createEl("label", { cls: "pdl-editor-field" });
-    deckLabel.createSpan({ text: "Deck to Export" });
+    deckLabel.createSpan({ text: L("Deck to Export", "Deck cần xuất") });
     const deckSelect = deckLabel.createEl("select", { cls: "pdl-edit-type" });
-    deckSelect.createEl("option", { text: "All Decks (Entire Library)", attr: { value: "all" } });
+    deckSelect.createEl("option", { text: L("All Decks (Entire Library)", "Tất cả deck (toàn thư viện)"), attr: { value: "all" } });
     const decks = new Map();
     this.cards.forEach(c => decks.set(c.file.path, c.deckTitle));
     [...decks.entries()].forEach(([path, title]) => deckSelect.createEl("option", { text: title, attr: { value: path } }));
 
     const btnRow = parent.createDiv({ cls: "pdl-edit-footer" });
-    const exportBtn = btnRow.createEl("button", { cls: "mod-cta", text: "Download Export File" });
+    const exportBtn = btnRow.createEl("button", { cls: "mod-cta", text: L("Download Export File", "Tải file xuất") });
     exportBtn.onclick = () => {
       let targetCards = this.cards;
       if (deckSelect.value !== "all") {
         targetCards = targetCards.filter(c => c.file.path === deckSelect.value);
       }
-      if (!targetCards.length) { new Notice("No cards to export."); return; }
+      if (!targetCards.length) { new Notice(L("No cards to export.", "Không có thẻ nào để xuất.")); return; }
 
       const format = formatSelect.value;
       if (format === "csv") {
@@ -95,29 +96,29 @@ class FlashcardExportImportModal extends Modal {
         })), null, 2);
         this.downloadFile("pdl-flashcards-export.json", json, "application/json");
       }
-      new Notice(`Exported ${targetCards.length} cards successfully.`);
+      new Notice(L(`Exported ${targetCards.length} cards successfully.`, `Đã xuất ${targetCards.length} thẻ thành công.`));
     };
   }
 
   renderImport(parent) {
-    parent.createEl("h3", { text: "Import Flashcards from CSV / JSON" });
-    parent.createEl("p", { cls: "pdl-edit-context", text: "Paste CSV or JSON content below to create a new flashcard deck note." });
+    parent.createEl("h3", { text: L("Import Flashcards from CSV / JSON", "Nhập flashcard từ CSV / JSON") });
+    parent.createEl("p", { cls: "pdl-edit-context", text: L("Paste CSV or JSON content below to create a new flashcard deck note.", "Dán nội dung CSV hoặc JSON bên dưới để tạo note deck flashcard mới.") });
 
     const nameLabel = parent.createEl("label", { cls: "pdl-editor-field" });
-    nameLabel.createSpan({ text: "New Deck Name" });
-    const nameInput = nameLabel.createEl("input", { attr: { type: "text", placeholder: "Imported Deck" } });
-    nameInput.value = "Imported Deck";
+    nameLabel.createSpan({ text: L("New Deck Name", "Tên deck mới") });
+    const nameInput = nameLabel.createEl("input", { attr: { type: "text", placeholder: L("Imported Deck", "Deck đã nhập") } });
+    nameInput.value = L("Imported Deck", "Deck đã nhập");
 
     const contentLabel = parent.createEl("label", { cls: "pdl-editor-field" });
-    contentLabel.createSpan({ text: "Data Content (CSV or JSON)" });
+    contentLabel.createSpan({ text: L("Data Content (CSV or JSON)", "Nội dung dữ liệu (CSV hoặc JSON)") });
     const textarea = contentLabel.createEl("textarea", { attr: { rows: "8", placeholder: "Question,Answer,Type,Explanation\nWhat is Obsidian?,A knowledge base software,basic," } });
 
     const btnRow = parent.createDiv({ cls: "pdl-edit-footer" });
-    const importBtn = btnRow.createEl("button", { cls: "mod-cta", text: "Import Cards" });
+    const importBtn = btnRow.createEl("button", { cls: "mod-cta", text: L("Import Cards", "Nhập thẻ") });
     importBtn.onclick = async () => {
       const text = textarea.value.trim();
       const deckName = nameInput.value.trim() || "Imported Deck";
-      if (!text) { new Notice("Please paste data to import."); return; }
+      if (!text) { new Notice(L("Please paste data to import.", "Hãy dán dữ liệu cần nhập.")); return; }
 
       let cards = [];
       try {
@@ -149,22 +150,22 @@ class FlashcardExportImportModal extends Modal {
           }
         }
       } catch (e) {
-        new Notice("Failed to parse import data: " + e.message);
+        new Notice(L("Failed to parse import data: " + e.message, "Không đọc được dữ liệu nhập: " + e.message));
         return;
       }
 
       if (!cards.length) {
-        new Notice("No valid cards found in import data.");
+        new Notice(L("No valid cards found in import data.", "Không tìm thấy thẻ hợp lệ trong dữ liệu nhập."));
         return;
       }
 
       const dummySource = { path: `06 - Flashcards/${deckName}.md`, basename: deckName };
       try {
         await this.plugin.createDeck(dummySource, cards, "import");
-        new Notice(`Successfully imported ${cards.length} cards into ${deckName}.`);
+        new Notice(L(`Successfully imported ${cards.length} cards into ${deckName}.`, `Đã nhập ${cards.length} thẻ vào ${deckName}.`));
         this.close();
       } catch (err) {
-        new Notice("Import error: " + (err.message || err));
+        new Notice(L("Import error: " + (err.message || err), "Lỗi nhập: " + (err.message || err)));
       }
     };
   }

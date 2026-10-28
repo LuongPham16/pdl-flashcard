@@ -7,8 +7,9 @@ import {
   formatRichCodeAware,
   wireCodeToggles
 } from "../formatting.js";
-import { normalizeCardText } from "../utils.js";
+import { normalizeCardText, truncateLabel } from "../utils.js";
 import { DEFAULT_AI_PROMPTS } from "../constants.js";
+import { L } from "../i18n.js";
 
 class FlashcardStudioModal extends Modal {
   constructor(app, plugin, sourceFile = null, options = {}) {
@@ -49,6 +50,11 @@ class FlashcardStudioModal extends Modal {
     }).catch(() => this.syncDeckState());
   }
 
+  /** Footer label that never grows with a long deck name; the full name stays in the tooltip. */
+  deckActionLabel(file) {
+    return L(`Add to ${truncateLabel(file.basename, 28)}`, `Thêm vào ${truncateLabel(file.basename, 28)}`);
+  }
+
   /** Patch the selection banner and the footer button to the resolved deck state. */
   syncDeckState() {
     if (!this.isOpen) return;
@@ -56,7 +62,7 @@ class FlashcardStudioModal extends Modal {
     if (panel) {
       panel.toggleClass("is-append", !!this.targetDeckFile);
       const badgeLabel = panel.querySelector(".pdl-selection-badge-label");
-      if (badgeLabel) badgeLabel.setText(this.targetDeckFile ? "BỔ SUNG VÀO DECK ĐÃ CÓ" : "DECK MỚI CHO NOTE NÀY");
+      if (badgeLabel) badgeLabel.setText(this.targetDeckFile ? L("APPEND TO THE EXISTING DECK", "BỔ SUNG VÀO DECK ĐÃ CÓ") : L("NEW DECK FOR THIS NOTE", "DECK MỚI CHO NOTE NÀY"));
       const target = panel.querySelector(".pdl-selection-target");
       if (target) {
         target.setText(this.targetDeckFile ? this.targetDeckFile.basename : "");
@@ -65,8 +71,9 @@ class FlashcardStudioModal extends Modal {
     }
     if (this.saveButtonEl) {
       this.saveButtonEl.setText(this.targetDeckFile
-        ? `Add to ${this.targetDeckFile.basename}`
-        : `Save to ${this.plugin.settings.outputFolder}`);
+        ? this.deckActionLabel(this.targetDeckFile)
+        : L(`Save to ${this.plugin.settings.outputFolder}`, `Lưu vào ${this.plugin.settings.outputFolder}`));
+      if (this.targetDeckFile) this.saveButtonEl.setAttr("title", L(`Add to ${this.targetDeckFile.basename}`, `Thêm vào ${this.targetDeckFile.basename}`));
     }
   }
 
@@ -83,9 +90,9 @@ class FlashcardStudioModal extends Modal {
     const root = this.contentEl; root.empty();
     const header = root.createDiv({ cls: "pdl-studio-head" });
     const headerCopy = header.createDiv({ cls: "pdl-studio-head-copy" });
-    headerCopy.createSpan({ text: "FLASHCARD STUDIO" });
-    headerCopy.createEl("h2", { text: "Build a flashcard deck" });
-    headerCopy.createEl("p", { text: "Turn one source note into an editable set of questions, then save only what is worth remembering." });
+    headerCopy.createSpan({ text: L("FLASHCARD STUDIO", "XƯỞNG FLASHCARD") });
+    headerCopy.createEl("h2", { text: L("Build a flashcard deck", "Tạo bộ flashcard") });
+    headerCopy.createEl("p", { text: L("Turn one source note into an editable set of questions, then save only what is worth remembering.", "Chuyển một note nguồn thành bộ câu hỏi có thể chỉnh sửa, rồi chỉ lưu những gì đáng nhớ.") });
     const draftTotal = header.createDiv({ cls: "pdl-studio-total" });
     draftTotal.createEl("strong", { text: String(this.cards.length) });
     draftTotal.createSpan({ text: this.cards.length === 1 ? "CARD\nIN DRAFT" : "CARDS\nIN DRAFT" });
@@ -93,7 +100,7 @@ class FlashcardStudioModal extends Modal {
     const sourceRow = root.createDiv({ cls: "pdl-studio-source" });
     const sourceLabel = sourceRow.createDiv({ cls: "pdl-studio-source-label" });
     const sourceIcon = sourceLabel.createSpan(); setIcon(sourceIcon, "file-text");
-    const sourceCopy = sourceLabel.createDiv(); sourceCopy.createEl("strong", { text: "Source note" }); sourceCopy.createSpan({ text: "The original note stays unchanged" });
+    const sourceCopy = sourceLabel.createDiv(); sourceCopy.createEl("strong", { text: L("Source note", "Note nguồn") }); sourceCopy.createSpan({ text: L("The original note stays unchanged", "Note gốc không bị thay đổi") });
     // Custom searchable dropdown — debounced + batched for performance
     const sourceFiles = this.getSourceFiles();
     const dropWrapper = sourceRow.createDiv({ cls: 'pdl-source-picker' });
@@ -108,7 +115,7 @@ class FlashcardStudioModal extends Modal {
     }
 
     const dropTrigger = dropWrapper.createDiv({ cls: 'pdl-source-picker__trigger' + (this.sourcePath ? ' is-hidden' : '') });
-    const dropTriggerText = dropTrigger.createSpan({ cls: 'pdl-source-picker__trigger-text', text: '— Choose a note —' });
+    const dropTriggerText = dropTrigger.createSpan({ cls: 'pdl-source-picker__trigger-text', text: L('— Choose a note —', '— Chọn một note —') });
     dropTrigger.createSpan({ cls: 'pdl-source-picker__trigger-icon', text: '▾' });
 
     const dropPanel = dropWrapper.createDiv({ cls: 'pdl-source-picker__panel' });
@@ -116,7 +123,7 @@ class FlashcardStudioModal extends Modal {
 
     const dropSearch = dropPanel.createEl('input', {
       cls: 'pdl-source-picker__search',
-      attr: { type: 'text', placeholder: 'Search notes…', autocomplete: 'off', spellcheck: 'false' }
+      attr: { type: 'text', placeholder: L('Search notes…', 'Tìm note…'), autocomplete: 'off', spellcheck: 'false' }
     });
     const dropCount = dropPanel.createDiv({ cls: 'pdl-source-picker__count' });
     const dropList = dropPanel.createDiv({ cls: 'pdl-source-picker__list' });
@@ -155,11 +162,11 @@ class FlashcardStudioModal extends Modal {
         : sourceFiles;
       const shown = lastMatches.slice(0, 40);
       dropCount.textContent = lastMatches.length > 40
-        ? `Showing 40 of ${lastMatches.length} notes — type to filter`
-        : `${lastMatches.length} notes`;
+        ? L(`Showing 40 of ${lastMatches.length} notes — type to filter`, `Hiển thị 40/${lastMatches.length} note — gõ để lọc`)
+        : L(`${lastMatches.length} notes`, `${lastMatches.length} note`);
 
       if (!shown.length) {
-        dropList.createDiv({ cls: 'pdl-source-picker__empty', text: 'No notes found' });
+        dropList.createDiv({ cls: 'pdl-source-picker__empty', text: L('No notes found', 'Không tìm thấy note') });
         return;
       }
 
@@ -247,22 +254,22 @@ class FlashcardStudioModal extends Modal {
     const aiCopy = ai.createDiv({ cls: "pdl-ai-copy" });
     const aiIcon = aiCopy.createSpan(); setIcon(aiIcon, "sparkles");
     const aiText = aiCopy.createDiv();
-    aiText.createEl("strong", { text: "Generate an AI draft" });
-    aiText.createEl("p", { text: this.selectedText ? "AI reads only the highlighted passage, not the whole note." : "AI reads only the selected note. You remain in control of every card." });
+    aiText.createEl("strong", { text: L("Generate an AI draft", "Tạo bản nháp bằng AI") });
+    aiText.createEl("p", { text: this.selectedText ? L("AI reads only the highlighted passage, not the whole note.", "AI chỉ đọc đoạn được bôi đen, không đọc toàn bộ note.") : L("AI reads only the selected note. You remain in control of every card.", "AI chỉ đọc note đã chọn. Bạn vẫn kiểm soát từng thẻ.") });
 
     const counts = ai.createDiv({ cls: "pdl-ai-counts" });
     const countDefaults = this.initialCounts || { basic: 4, mcq: 3, cloze: 3 };
 
-    counts.createEl("label", { text: "Q&A" });
+    counts.createEl("label", { text: L("Q&A", "Hỏi đáp") });
     const basicCount = counts.createEl("input", { attr: { type: "number", min: "0", max: "30", value: String(countDefaults.basic ?? 4) } });
 
     counts.createEl("label", { text: "MCQ" });
     const mcqCount = counts.createEl("input", { attr: { type: "number", min: "0", max: "30", value: String(countDefaults.mcq ?? 3) } });
 
-    counts.createEl("label", { text: "Cloze" });
+    counts.createEl("label", { text: L("Cloze", "Điền khuyết") });
     const clozeCount = counts.createEl("input", { attr: { type: "number", min: "0", max: "30", value: String(countDefaults.cloze ?? 3) } });
 
-    const promptSelect = counts.createEl("select", { cls: "pdl-ai-prompt-select", attr: { title: "Select AI Prompt Preset" } });
+    const promptSelect = counts.createEl("select", { cls: "pdl-ai-prompt-select", attr: { title: L("Select AI Prompt Preset", "Chọn prompt AI") } });
     const prompts = this.plugin.settings.aiPrompts || DEFAULT_AI_PROMPTS;
     prompts.forEach(p => {
       promptSelect.createEl("option", { text: p.name, attr: { value: p.id } });
@@ -273,11 +280,11 @@ class FlashcardStudioModal extends Modal {
       await this.plugin.saveData(this.plugin.settings);
     };
 
-    const reverseCheck = counts.createEl("input", { attr: { type: "checkbox", title: "Tạo thẻ 2 chiều" } });
-    const reverseLabel = counts.createEl("label", { text: "Tạo thẻ 2 chiều", attr: { style: "cursor: pointer;" } });
+    const reverseCheck = counts.createEl("input", { attr: { type: "checkbox", title: L("Create reverse cards", "Tạo thẻ 2 chiều") } });
+    const reverseLabel = counts.createEl("label", { text: L("Create reverse cards", "Tạo thẻ 2 chiều"), attr: { style: "cursor: pointer;" } });
     reverseLabel.onclick = () => { reverseCheck.checked = !reverseCheck.checked; };
 
-    const generate = counts.createEl("button", { cls: "mod-cta", text: "Generate with AI" });
+    const generate = counts.createEl("button", { cls: "mod-cta", text: L("Generate with AI", "Tạo bằng AI") });
     this.runAIGeneration = options => this.generateDraft(options);
     generate.onclick = () => this.runAIGeneration({
       generate,
@@ -305,42 +312,42 @@ class FlashcardStudioModal extends Modal {
     }
 
     const editorHead = root.createDiv({ cls: "pdl-editor-head" });
-    const editorTitle = editorHead.createDiv(); editorTitle.createSpan({ text: "DRAFT WORKSPACE" }); editorTitle.createEl("h3", { text: "Questions" });
-    const add = editorHead.createEl("button", { cls: "pdl-studio-add" }); const addIcon = add.createSpan(); setIcon(addIcon, "plus"); add.createSpan({ text: "Add question" });
+    const editorTitle = editorHead.createDiv(); editorTitle.createSpan({ text: L("DRAFT WORKSPACE", "BẢN NHÁP") }); editorTitle.createEl("h3", { text: L("Questions", "Câu hỏi") });
+    const add = editorHead.createEl("button", { cls: "pdl-studio-add" }); const addIcon = add.createSpan(); setIcon(addIcon, "plus"); add.createSpan({ text: L("Add question", "Thêm câu hỏi") });
     add.onclick = () => { this.cards.push({ type: "basic", question: "", answer: "", explanation: "", tags: [], choices: ["", "", "", ""] }); this.render(); };
     const list = root.createDiv({ cls: "pdl-card-editors" });
     this.cards.forEach((card, index) => this.renderCardEditor(list, card, index));
 
     const footer = root.createDiv({ cls: "pdl-studio-footer" });
-    const footerNote = footer.createDiv(); footerNote.createEl("strong", { text: "Ready when you are" }); footerNote.createSpan({ text: "Incomplete cards are skipped automatically." });
+    const footerNote = footer.createDiv(); footerNote.createEl("strong", { text: L("Ready when you are", "Sẵn sàng khi bạn muốn") }); footerNote.createSpan({ text: L("Incomplete cards are skipped automatically.", "Thẻ chưa hoàn chỉnh sẽ tự động bị bỏ qua.") });
     const footerActions = footer.createDiv();
-    const cancel = footerActions.createEl("button", { text: "Cancel" }); cancel.onclick = () => this.close();
-    const saveLabel = this.targetDeckFile ? `Add to ${this.targetDeckFile.basename}` : `Save to ${this.plugin.settings.outputFolder}`;
+    const cancel = footerActions.createEl("button", { text: L("Cancel", "Hủy") }); cancel.onclick = () => this.close();
+    const saveLabel = this.targetDeckFile ? this.deckActionLabel(this.targetDeckFile) : L(`Save to ${this.plugin.settings.outputFolder}`, `Lưu vào ${this.plugin.settings.outputFolder}`);
     const save = footerActions.createEl("button", { cls: "mod-cta", text: saveLabel });
     this.saveButtonEl = save;
     save.onclick = async () => {
-      if (!this.sourcePath) { new Notice("Choose a source note first."); return; }
+      if (!this.sourcePath) { new Notice(L("Choose a source note first.", "Hãy chọn một note nguồn trước.")); return; }
       const valid = this.cards.filter(card => {
         if (card.type === "cloze") return card.question.trim().length > 0;
         return card.question.trim() && card.answer.trim();
       });
       const broken = valid.find(card => card.type === "multiple-choice" && (card.choices.filter(Boolean).length !== 4 || !card.choices.includes(card.answer)));
-      if (!valid.length) { new Notice("Add at least one complete question and answer."); return; }
-      if (broken) { new Notice("Every multiple-choice card needs exactly four choices, and its answer must exactly match one choice."); return; }
+      if (!valid.length) { new Notice(L("Add at least one complete question and answer.", "Hãy thêm ít nhất một câu hỏi và đáp án hoàn chỉnh.")); return; }
+      if (broken) { new Notice(L("Every multiple-choice card needs exactly four choices, and its answer must exactly match one choice.", "Mỗi câu trắc nghiệm cần đúng bốn lựa chọn và đáp án phải trùng khớp một lựa chọn.")); return; }
       const source = this.app.vault.getAbstractFileByPath(this.sourcePath);
-      if (!source) { new Notice("The source note could not be found."); return; }
+      if (!source) { new Notice(L("The source note could not be found.", "Không tìm thấy note nguồn.")); return; }
       save.disabled = true;
       try {
         // A deck already linked to this note means "supplement", not "duplicate".
         const existingDeck = this.targetDeckFile || await this.plugin.findDeckFileForSource(this.sourcePath);
         if (existingDeck) {
           const result = await this.plugin.appendCardsToDeck(existingDeck, valid);
-          new Notice(`Added ${result.added} flashcards to ${existingDeck.basename}.`);
+          new Notice(L(`Added ${result.added} flashcards to ${existingDeck.basename}.`, `Đã thêm ${result.added} flashcard vào ${existingDeck.basename}.`));
         } else {
           await this.plugin.createDeck(source, valid, this.selectedText ? "ai-selection" : "manual-or-ai-reviewed");
         }
         this.close();
-      } catch (error) { new Notice(`Could not save: ${error.message || error}`); save.disabled = false; }
+      } catch (error) { new Notice(L(`Could not save: ${error.message || error}`, `Không thể lưu: ${error.message || error}`)); save.disabled = false; }
     };
 
     this.startDeckScan();
@@ -353,8 +360,8 @@ class FlashcardStudioModal extends Modal {
     const head = box.createDiv({ cls: "pdl-selection-head" });
     const badge = head.createSpan({ cls: "pdl-selection-badge" });
     const badgeIcon = badge.createSpan(); setIcon(badgeIcon, "highlighter");
-    badge.createSpan({ cls: "pdl-selection-badge-label", text: this.targetDeckFile ? "BỔ SUNG VÀO DECK ĐÃ CÓ" : "DECK MỚI CHO NOTE NÀY" });
-    head.createEl("strong", { text: `${this.selectedText.length} ký tự được bôi đen` });
+    badge.createSpan({ cls: "pdl-selection-badge-label", text: this.targetDeckFile ? L("APPEND TO THE EXISTING DECK", "BỔ SUNG VÀO DECK ĐÃ CÓ") : L("NEW DECK FOR THIS NOTE", "DECK MỚI CHO NOTE NÀY") });
+    head.createEl("strong", { text: L(`${this.selectedText.length} characters selected`, `${this.selectedText.length} ký tự được bôi đen`) });
     head.createSpan({ cls: `pdl-selection-target${this.targetDeckFile ? "" : " is-hidden"}`, text: this.targetDeckFile ? this.targetDeckFile.basename : "" });
     const preview = box.createEl("blockquote", { cls: "pdl-selection-text" });
     preview.setText(this.selectedText.length > 900 ? `${this.selectedText.slice(0, 900)}…` : this.selectedText);
@@ -368,14 +375,14 @@ class FlashcardStudioModal extends Modal {
    */
   async generateDraft(options = {}) {
     const { generate, source, counts: countsPayload, promptId, reverse } = options;
-    if (!this.sourcePath) { new Notice("Choose a source note first."); return; }
-    if (!source) { new Notice("The source note could not be found."); return; }
-    if (generate) { generate.disabled = true; generate.setText(this.selectedText ? "AI is reading the selection…" : "AI is reading the note…"); }
+    if (!this.sourcePath) { new Notice(L("Choose a source note first.", "Hãy chọn một note nguồn trước.")); return; }
+    if (!source) { new Notice(L("The source note could not be found.", "Không tìm thấy note nguồn.")); return; }
+    if (generate) { generate.disabled = true; generate.setText(this.selectedText ? L("AI is reading the selection…", "AI đang đọc đoạn được chọn…") : L("AI is reading the note…", "AI đang đọc note…")); }
     try {
       const generated = this.selectedText
         ? await this.plugin.generateWithAIText(source, this.selectedText, countsPayload, promptId)
         : await this.plugin.generateWithAI(source, countsPayload, promptId);
-      if (!generated.length) throw new Error("AI did not generate any questions.");
+      if (!generated.length) throw new Error(L("AI did not generate any questions.", "AI không tạo được câu hỏi nào."));
 
       const parsedCards = generated.map(card => {
         const type = card.type === "multiple-choice" ? "multiple-choice" : card.type === "cloze" ? "cloze" : "basic";
@@ -383,11 +390,11 @@ class FlashcardStudioModal extends Modal {
         while (choices.length < 4) choices.push("");
         return {
           type,
-          question: card.question || "",
-          answer: card.answer || (type === "cloze" ? parseCloze(card.question || "").answers.join(", ") : ""),
-          explanation: card.explanation || "",
-          tags: Array.isArray(card.tags) ? card.tags : [],
-          choices
+          question: normalizeCardText(card.question || ""),
+          answer: normalizeCardText(card.answer || (type === "cloze" ? parseCloze(card.question || "").answers.join(", ") : "")),
+          explanation: normalizeCardText(card.explanation || ""),
+          tags: Array.isArray(card.tags) ? card.tags.map(tag => normalizeCardText(tag)).filter(Boolean) : [],
+          choices: choices.map(choice => normalizeCardText(choice))
         };
       });
 
@@ -399,51 +406,51 @@ class FlashcardStudioModal extends Modal {
             ...card,
             question: card.answer,
             answer: card.question,
-            explanation: (card.explanation ? card.explanation + "\n\n" : "") + "*(Thẻ đảo chiều / Reverse card)*"
+            explanation: (card.explanation ? card.explanation + "\n\n" : "") + L("*(Reverse card)*", "*(Thẻ đảo chiều)*")
           });
         }
       });
 
       this.render();
-      new Notice(`AI generated ${this.cards.length} questions. Review them before saving.`);
+      new Notice(L(`AI generated ${this.cards.length} questions. Review them before saving.`, `AI đã tạo ${this.cards.length} câu hỏi. Hãy xem lại trước khi lưu.`));
     } catch (error) {
       new Notice(error.message || String(error));
-      if (generate && generate.isConnected) { generate.disabled = false; generate.setText("Generate with AI"); }
+      if (generate && generate.isConnected) { generate.disabled = false; generate.setText(L("Generate with AI", "Tạo bằng AI")); }
     }
   }
 
   renderCardEditor(parent, card, index) {
     const box = parent.createDiv({ cls: "pdl-card-editor" });
     const top = box.createDiv({ cls: "pdl-card-editor-top" });
-    top.createEl("strong", { text: `Question ${String(index + 1).padStart(2, "0")}` });
+    top.createEl("strong", { text: L(`Question ${String(index + 1).padStart(2, "0")}`, `Câu hỏi ${String(index + 1).padStart(2, "0")}`) });
     const type = top.createEl("select");
-    type.createEl("option", { text: "Question and answer", attr: { value: "basic" } });
-    type.createEl("option", { text: "Cloze deletion", attr: { value: "cloze" } });
-    type.createEl("option", { text: "Four-choice question", attr: { value: "multiple-choice" } });
+    type.createEl("option", { text: L("Question and answer", "Hỏi và đáp"), attr: { value: "basic" } });
+    type.createEl("option", { text: L("Cloze deletion", "Điền khuyết"), attr: { value: "cloze" } });
+    type.createEl("option", { text: L("Four-choice question", "Câu hỏi bốn lựa chọn"), attr: { value: "multiple-choice" } });
     type.value = card.type; type.onchange = () => { card.type = type.value; this.render(); };
-    const remove = top.createEl("button", { cls: "pdl-remove-card", attr: { "aria-label": `Delete question ${index + 1}` } }); setIcon(remove, "trash-2");
+    const remove = top.createEl("button", { cls: "pdl-remove-card", attr: { "aria-label": L(`Delete question ${index + 1}`, `Xóa câu hỏi ${index + 1}`) } }); setIcon(remove, "trash-2");
     remove.onclick = () => { this.cards.splice(index, 1); this.render(); };
 
     const preview = box.createDiv({ cls: "pdl-card-preview" });
     const updatePreview = () => this.renderDraftPreview(preview, card);
 
-    this.addTextarea(box, card.type === "cloze" ? "Statement with {{c1::hidden text}} or ==hidden text==" : "Question", card.question, value => { card.question = value; updatePreview(); });
+    this.addTextarea(box, card.type === "cloze" ? L("Statement with {{c1::hidden text}} or ==hidden text==", "Câu với {{c1::chữ ẩn}} hoặc ==chữ ẩn==") : L("Question", "Câu hỏi"), card.question, value => { card.question = value; updatePreview(); });
     if (card.type === "multiple-choice") {
       const grid = box.createDiv({ cls: "pdl-choice-editor" });
       for (let i = 0; i < 4; i++) {
-        const label = grid.createEl("label"); label.createSpan({ text: `Choice ${String.fromCharCode(65 + i)}` });
+        const label = grid.createEl("label"); label.createSpan({ text: L(`Choice ${String.fromCharCode(65 + i)}`, `Lựa chọn ${String.fromCharCode(65 + i)}`) });
         const input = label.createEl("input", { attr: { type: "text" } }); input.value = card.choices[i] || "";
         input.oninput = () => { card.choices[i] = input.value; updatePreview(); };
       }
     }
     if (card.type !== "cloze") {
-      this.addTextarea(box, card.type === "multiple-choice" ? "Correct answer (must exactly match one choice)" : "Answer", card.answer, value => { card.answer = value; updatePreview(); });
+      this.addTextarea(box, card.type === "multiple-choice" ? L("Correct answer (must exactly match one choice)", "Đáp án đúng (phải trùng khớp một lựa chọn)") : L("Answer", "Đáp án"), card.answer, value => { card.answer = value; updatePreview(); });
     }
-    this.addTextarea(box, "Tags (comma separated, e.g. devops, eng)", (card.tags || []).join(", "), value => {
+    this.addTextarea(box, L("Tags (comma separated, e.g. devops, eng)", "Tags (phân cách bằng dấu phẩy, ví dụ devops, eng)"), (card.tags || []).join(", "), value => {
       card.tags = value.split(",").map(t => t.trim()).filter(Boolean);
       updatePreview();
     }, true);
-    this.addTextarea(box, "Explanation (optional)", card.explanation || "", value => { card.explanation = value; updatePreview(); }, true);
+    this.addTextarea(box, L("Explanation (optional)", "Giải thích (không bắt buộc)"), card.explanation || "", value => { card.explanation = value; updatePreview(); }, true);
 
     updatePreview();
   }
@@ -451,7 +458,7 @@ class FlashcardStudioModal extends Modal {
   /** Live preview of how the drafted card will look, so code is visible before saving. */
   renderDraftPreview(preview, card) {
     preview.empty();
-    preview.createDiv({ cls: "pdl-card-preview-label", text: "Preview" });
+    preview.createDiv({ cls: "pdl-card-preview-label", text: L("Preview", "Xem trước") });
     const body = preview.createDiv({ cls: "pdl-card-preview-body" });
 
     const question = box => {
@@ -460,7 +467,7 @@ class FlashcardStudioModal extends Modal {
     };
     const explanation = box => {
       if (!card.explanation) return;
-      box.createDiv({ cls: "pdl-section-label", text: "GIẢI THÍCH CHI TIẾT" });
+      box.createDiv({ cls: "pdl-section-label", text: L("DETAILED EXPLANATION", "GIẢI THÍCH CHI TIẾT") });
       const el = box.createDiv({ cls: "pdl-section-body pdl-rich markdown-rendered" });
       el.innerHTML = formatRichText(card.explanation);
     };
@@ -488,7 +495,7 @@ class FlashcardStudioModal extends Modal {
       wireCodeToggles(preview);
       return;
     }
-    body.createDiv({ cls: "pdl-section-label", text: "ĐÁP ÁN CHÍNH XÁC" });
+    body.createDiv({ cls: "pdl-section-label", text: L("CORRECT ANSWER", "ĐÁP ÁN CHÍNH XÁC") });
     if (String(answerText).trim()) {
       const answerBody = body.createDiv({ cls: "pdl-section-body pdl-rich markdown-rendered" });
       answerBody.innerHTML = formatRichCodeAware(answerText);

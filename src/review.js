@@ -2,6 +2,7 @@
 import { Notice } from "obsidian";
 import { DAY } from "./constants.js";
 import { dateKey, truncateLabel } from "./utils.js";
+import { L } from "./i18n.js";
 
 /** Mixed into PDLFlashcardPlugin in plugin.js. */
 export class ReviewMethods {
@@ -37,7 +38,7 @@ export class ReviewMethods {
     if (grade === 1 && threshold > 0 && lapses > 0 && lapses % threshold === 0 && !entry.suspended) {
       entry.suspended = true;
       await this.saveData(this.settings);
-      new Notice(`"${truncateLabel(card.question)}" đã bị tạm dừng sau ${lapses} lần quên (leech). Nên viết lại thẻ này.`, 6000);
+      new Notice(L(`"${truncateLabel(card.question)}" was suspended after ${lapses} lapses (leech). Rewrite this card.`, `"${truncateLabel(card.question)}" đã bị tạm dừng sau ${lapses} lần quên (leech). Nên viết lại thẻ này.`), 6000);
     }
   }
 

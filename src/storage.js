@@ -1,7 +1,8 @@
 /** Deck persistence: finding, reading, writing and appending flashcard notes. */
 import { Notice, normalizePath } from "obsidian";
-import { normalizeCardText, truncateLabel } from "./utils.js";
+import { nfcText, normalizeCardText, truncateLabel } from "./utils.js";
 import { parseCloze } from "./formatting.js";
+import { L } from "./i18n.js";
 
 /** Mixed into PDLFlashcardPlugin in plugin.js. */
 export class StorageMethods {
@@ -15,19 +16,29 @@ export class StorageMethods {
       if (!match) continue;
       try {
         const deck = JSON.parse(match[1]);
-        const sourcePath = deck.sourcePath || "";
+        const sourcePath = nfcText(deck.sourcePath);
         const sourceFile = this.app.vault.getAbstractFileByPath(sourcePath);
         for (const item of Array.isArray(deck.cards) ? deck.cards : []) {
-          if (!item.question && !item.answer) continue;
+          // Normalize on read too: decks created before this fix may still contain
+          // decomposed Vietnamese and would otherwise keep showing broken accents.
+          const question = nfcText(item.question);
+          const answer = nfcText(item.answer);
+          if (!question && !answer) continue;
           cards.push({
             ...item,
+            question,
+            answer,
+            explanation: nfcText(item.explanation),
+            choices: Array.isArray(item.choices) ? item.choices.map(nfcText) : item.choices,
             id: item.id || `${file.path}#${cards.length}`,
-            heading: item.question,
+            heading: question,
             file,
             sourceFile,
             sourcePath,
-            deckTitle: deck.title || file.basename,
-            tags: Array.isArray(item.tags) ? item.tags : (Array.isArray(deck.tags) ? deck.tags : [])
+            deckTitle: nfcText(deck.title) || file.basename,
+            tags: Array.isArray(item.tags)
+              ? item.tags.map(nfcText)
+              : (Array.isArray(deck.tags) ? deck.tags.map(nfcText) : [])
           });
         }
       } catch (error) { console.error("PDL Flashcard: invalid deck", file.path, error); }
@@ -38,7 +49,7 @@ export class StorageMethods {
   async readDeck(file) {
     const raw = await this.app.vault.cachedRead(file);
     const match = raw.match(/```pdl-flashcards\s*\n([\s\S]*?)\n```/);
-    if (!match) throw new Error("This note does not contain a PDL flashcard deck.");
+    if (!match) throw new Error(L("This note does not contain a PDL flashcard deck.", "Note này không chứa deck flashcard PDL."));
     return { raw, json: match[1], deck: JSON.parse(match[1]) };
   }
 
@@ -116,12 +127,12 @@ export class StorageMethods {
       added.push(card);
       existingIds.add(id);
     }
-    if (!added.length) throw new Error("Nothing new could be added; the AI response contained no usable questions.");
+    if (!added.length) throw new Error(L("Nothing new could be added; the AI response contained no usable questions.", "Không có nội dung mới để thêm; phản hồi AI không có câu hỏi dùng được."));
     deck.cards = existing.concat(added);
     if (!deck.createdAt) deck.createdAt = new Date().toISOString();
     deck.generatedBy = deck.generatedBy ? `${deck.generatedBy}+ai-selection` : "ai-selection";
     const match = raw.match(/```pdl-flashcards\s*\n([\s\S]*?)\n```/);
-    if (!match) throw new Error("This note does not contain a PDL flashcard deck.");
+    if (!match) throw new Error(L("This note does not contain a PDL flashcard deck.", "Note này không chứa deck flashcard PDL."));
     const header = raw.slice(0, match.index);
     const footer = raw.slice(match.index + match[0].length);
     const updatedHeader = /^card_count:\s*\d+/m.test(header)
@@ -144,7 +155,7 @@ export class StorageMethods {
   async updateCard(card, values) {
     const { raw, json, deck } = await this.readDeck(card.file);
     const index = deck.cards.findIndex(item => item.id === card.id);
-    if (index < 0) throw new Error("The flashcard no longer exists in its deck.");
+    if (index < 0) throw new Error(L("The flashcard no longer exists in its deck.", "Flashcard không còn tồn tại trong deck."));
     const current = deck.cards[index];
     const merged = { ...current, ...values, id: card.id };
     const cleanType = merged.type || "basic";
@@ -164,7 +175,7 @@ export class StorageMethods {
     const { raw, json, deck } = await this.readDeck(card.file);
     const before = deck.cards.length;
     deck.cards = deck.cards.filter(item => item.id !== card.id);
-    if (deck.cards.length === before) throw new Error("The flashcard no longer exists in its deck.");
+    if (deck.cards.length === before) throw new Error(L("The flashcard no longer exists in its deck.", "Flashcard không còn tồn tại trong deck."));
     delete this.settings.schedule[card.id];
     this.settings.reviews = this.settings.reviews.filter(review => review.cardId !== card.id);
     await this.saveData(this.settings);
@@ -181,11 +192,11 @@ export class StorageMethods {
     const normalized = cards
       .map((card, index) => this.normalizeCard(card, `${Date.now()}-${index + 1}`))
       .filter(Boolean);
-    if (!normalized.length) throw new Error("No complete flashcards to save.");
+    if (!normalized.length) throw new Error(L("No complete flashcards to save.", "Không có flashcard hoàn chỉnh nào để lưu."));
     const payload = { version: 1, title: `Flashcards — ${sourceFile.basename}`, sourcePath: sourceFile.path, createdAt: new Date().toISOString(), generatedBy: mode, cards: normalized };
     const body = `---\ntype: flashcard-deck\nllm_managed: true\nsource_note: "[[${sourceFile.basename}]]"\nsource_path: "${sourceFile.path.replace(/"/g, '\\"')}"\ncard_count: ${normalized.length}\ngenerated_by: ${mode}\n---\n\n# Flashcards — ${sourceFile.basename}\n\nSource: [[${sourceFile.basename}]]\n\n> This deck is managed by PDL Flashcard. You may edit its structured JSON block when needed.\n\n\`\`\`pdl-flashcards\n${JSON.stringify(payload, null, 2)}\n\`\`\`\n`;
     const created = await this.app.vault.create(path, body);
-    new Notice(`Created ${normalized.length} flashcards in ${this.settings.outputFolder}.`);
+    new Notice(L(`Created ${normalized.length} flashcards in ${this.settings.outputFolder}.`, `Đã tạo ${normalized.length} flashcard trong ${this.settings.outputFolder}.`));
     const view = this.getView(); if (view) await view.refresh();
     return created;
   }

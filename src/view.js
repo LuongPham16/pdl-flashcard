@@ -1,7 +1,8 @@
 /** The review dashboard: library, review session, heatmap and summary. */
 import { ItemView, Notice, setIcon, MarkdownRenderer } from "obsidian";
 import { VIEW_TYPE, DAY } from "./constants.js";
-import { dateKey, formatCount, truncateLabel } from "./utils.js";
+import { dateKey, formatCount, nfcText, truncateLabel } from "./utils.js";
+import { L, locale } from "./i18n.js";
 import {
   formatRichInline,
   formatRichText,
@@ -16,6 +17,27 @@ import { FlashcardStatisticsModal } from "./modals/statistics.js";
 import { FlashcardManagerModal } from "./modals/manager.js";
 import { FlashcardStudioModal } from "./modals/studio.js";
 
+/**
+ * Georgia has no Vietnamese glyphs on Windows. Set the reading font inline too so
+ * the card is correct even when Obsidian still has an older styles.css in memory.
+ */
+const READING_FONT = '"Times New Roman", Georgia, serif';
+
+function applyReadingFont(container) {
+  if (!container || typeof container.querySelectorAll !== "function") return;
+  const apply = element => {
+    if (!element || !element.style) return;
+    element.style.fontFamily = READING_FONT;
+    element.style.fontKerning = "none";
+  };
+  apply(container);
+  container.querySelectorAll("*").forEach(element => {
+    if (/^(CODE|PRE|KBD)$/.test(element.tagName)) return;
+    if (element.closest?.(".pdl-code, .pdl-inline-code, .katex")) return;
+    apply(element);
+  });
+}
+
 export class PDLFlashcardView extends ItemView {
   constructor(leaf, plugin) {
     super(leaf);
@@ -29,7 +51,6 @@ export class PDLFlashcardView extends ItemView {
     this.selectedChoice = null;
     this.showQuestionMode = false;
     this.deckPage = 0;
-    this.deckPageSize = 5;
   }
 
   getViewType() { return VIEW_TYPE; }
@@ -45,7 +66,7 @@ export class PDLFlashcardView extends ItemView {
    * keeps the plugin's "a bare command becomes code" behaviour for answers.
    */
   async renderCardText(container, raw, options = {}) {
-    const source = String(raw ?? "");
+    const source = nfcText(raw);
     if (!source.trim()) { container.empty(); return; }
     let markdown;
     if (options.cloze) {
@@ -70,6 +91,7 @@ export class PDLFlashcardView extends ItemView {
       container.addClass("pdl-rich");
       container.addClass("markdown-rendered");
       wireCodeToggles(container);
+      applyReadingFont(container);
       return;
     } else {
       markdown = source;
@@ -84,6 +106,7 @@ export class PDLFlashcardView extends ItemView {
       if (options.inline) container.addClass("is-inline-rich");
       if (options.cloze) this.restoreClozeMarkup(container);
       wireCodeToggles(container);
+      applyReadingFont(container);
     } catch (_) {
       const html = options.inline || options.cloze ? formatRichInline(source) : formatRichText(source, options);
       if (!html) return;
@@ -91,6 +114,7 @@ export class PDLFlashcardView extends ItemView {
       container.addClass("pdl-rich");
       if (!options.inline) container.addClass("markdown-rendered");
       wireCodeToggles(container);
+      applyReadingFont(container);
     }
   }
 
@@ -130,7 +154,7 @@ export class PDLFlashcardView extends ItemView {
   async refresh() {
     const content = this.containerEl.children[1];
     content.empty();
-    content.createDiv({ cls: "pdl-loading", text: "Mapping your flashcard library…" });
+    content.createDiv({ cls: "pdl-loading", text: L("Mapping your flashcard library…", "Đang quét thư viện flashcard…") });
     this.cards = await this.plugin.getCards();
     this.filtered = this.cards;
     this.renderDashboard();
@@ -159,12 +183,12 @@ export class PDLFlashcardView extends ItemView {
     const masthead = root.createDiv({ cls: "pdl-masthead" });
     const brand = masthead.createDiv({ cls: "pdl-brand" });
     brand.createSpan({ cls: "pdl-brand-mark", text: "PDL" });
-    brand.createSpan({ text: "MEMORY PRESS" });
-    masthead.createSpan({ cls: "pdl-edition", text: `${new Intl.DateTimeFormat("en-US", { weekday:"long", day:"2-digit", month:"2-digit" }).format(new Date())} · DAILY EDITION` });
+    brand.createSpan({ text: L("MEMORY PRESS", "BẢN TIN HỌC TẬP") });
+    masthead.createSpan({ cls: "pdl-edition", text: `${new Intl.DateTimeFormat(locale(), { weekday:"long", day:"2-digit", month:"2-digit" }).format(new Date())} · ${L("DAILY EDITION", "BẢN HÔM NAY")}` });
 
     const statGrid = root.createDiv({ cls: "pdl-stat-grid" });
-    const statCells = [["Due", stats.due, "clock-3"], ["Today", stats.todayReviews, "check-circle-2"], ["Mature", stats.mature, "shield-check"], ["Day streak", stats.streak, "flame"]];
-    if (stats.suspended) statCells.push(["Suspended", stats.suspended, "pause-circle"]);
+    const statCells = [[L("Due", "Đến hạn"), stats.due, "clock-3"], [L("Today", "Hôm nay"), stats.todayReviews, "check-circle-2"], [L("Mature", "Thành thạo"), stats.mature, "shield-check"], [L("Day streak", "Chuỗi ngày"), stats.streak, "flame"]];
+    if (stats.suspended) statCells.push([L("Suspended", "Tạm dừng"), stats.suspended, "pause-circle"]);
     statCells.forEach(([label,value,icon], index) => {
       const box = statGrid.createDiv({ cls: `pdl-stat pdl-stat-${index + 1}` });
       const glyph = box.createSpan({ cls: "pdl-stat-icon" }); setIcon(glyph, icon);
@@ -176,32 +200,32 @@ export class PDLFlashcardView extends ItemView {
     const panel = root.createDiv({ cls: "pdl-library" });
     const panelHead = panel.createDiv({ cls: "pdl-panel-head" });
     const heading = panelHead.createDiv();
-    heading.createEl("h3", { text: "Flashcard Library" });
-    heading.createEl("p", { text: `${formatCount(this.cards.length)} questions curated in ${this.plugin.settings.outputFolder}` });
+    heading.createEl("h3", { text: L("Flashcard Library", "Thư viện flashcard") });
+    heading.createEl("p", { text: L(`${formatCount(this.cards.length)} questions curated in ${this.plugin.settings.outputFolder}`, `${formatCount(this.cards.length)} câu hỏi trong ${this.plugin.settings.outputFolder}`) });
     const tools = panelHead.createDiv({ cls: "pdl-library-tools" });
 
-    const customStudy = tools.createEl("button", { cls: "pdl-custom-study", text: "Custom Study" });
+    const customStudy = tools.createEl("button", { cls: "pdl-custom-study", text: L("Custom Study", "Ôn tùy chọn") });
     setIcon(customStudy.createSpan(), "flame");
     customStudy.onclick = () => new FlashcardCustomStudyModal(this.app, this.plugin, this).open();
 
-    const impExp = tools.createEl("button", { cls: "pdl-imp-exp", text: "Import/Export" });
+    const impExp = tools.createEl("button", { cls: "pdl-imp-exp", text: L("Import/Export", "Nhập/Xuất") });
     setIcon(impExp.createSpan(), "arrow-up-right-from-square");
     impExp.onclick = () => new FlashcardExportImportModal(this.app, this.plugin).open();
 
-    const statistics = tools.createEl("button", { cls: "pdl-open-stats", text: "Statistics" });
+    const statistics = tools.createEl("button", { cls: "pdl-open-stats", text: L("Statistics", "Thống kê") });
     setIcon(statistics.createSpan(), "chart-no-axes-combined");
     statistics.onclick = () => new FlashcardStatisticsModal(this.app, this.plugin).open();
 
-    const manage = tools.createEl("button", { cls: "pdl-manage-cards", text: "Manage cards" });
+    const manage = tools.createEl("button", { cls: "pdl-manage-cards", text: L("Manage cards", "Quản lý thẻ") });
     setIcon(manage.createSpan(), "table-properties");
     manage.onclick = () => new FlashcardManagerModal(this.app, this.plugin).open();
 
-    const create = tools.createEl("button", { cls: "pdl-create-deck", text: "Create deck" });
+    const create = tools.createEl("button", { cls: "pdl-create-deck", text: L("Create deck", "Tạo deck") });
     setIcon(create.createSpan(), "plus");
     create.onclick = () => new FlashcardStudioModal(this.app, this.plugin).open();
 
-    const search = tools.createEl("input", { placeholder: "Search decks, tags or questions…", attr: { type: "search" } });
-    search.setAttr("aria-label", "Search flashcards");
+    const search = tools.createEl("input", { placeholder: L("Search decks, tags or questions…", "Tìm deck, tag hoặc câu hỏi…"), attr: { type: "search" } });
+    search.setAttr("aria-label", L("Search flashcards", "Tìm flashcard"));
     search.oninput = () => {
       const q = search.value.trim().toLowerCase();
       this.filtered = this.cards.filter(card => {
@@ -226,11 +250,13 @@ export class PDLFlashcardView extends ItemView {
     const total = days.reduce((sum,day)=>sum+day.count,0);
     const active = days.filter(day=>day.count>0).length;
     const section = root.createDiv({ cls:"pdl-dashboard-heatmap" });
-    const head = section.createDiv({ cls:"pdl-heatmap-head" }); const copy=head.createDiv(); copy.createEl("h3",{text:"Review Consistency"}); copy.createEl("p",{text:`${formatCount(total)} reviews across ${active} active days · last 26 weeks`});
-    const legend=head.createDiv({cls:"pdl-heatmap-legend",attr:{"aria-label":"Activity intensity legend"}}); legend.createSpan({text:"Less"}); [0,1,2,3,4].forEach(level=>legend.createSpan({cls:`pdl-heatmap-swatch level-${level}`})); legend.createSpan({text:"More"});
-    const body=section.createDiv({cls:"pdl-heatmap-body"}); const labels=body.createDiv({cls:"pdl-heatmap-weekdays"}); ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach((label,index)=>labels.createSpan({text:index%2?label:""}));
-    const grid=body.createDiv({cls:"pdl-heatmap-grid",attr:{role:"grid","aria-label":"Review activity for the last 26 weeks"}});
-    days.forEach(day=>{const level=day.future?0:day.count===0?0:day.count===1?1:day.count<=4?2:day.count<=9?3:4;const label=`${new Intl.DateTimeFormat("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"}).format(day.date)}: ${day.count} ${day.count===1?"review":"reviews"}`;grid.createSpan({cls:`pdl-heatmap-cell level-${level}${day.future?" is-future":""}`,attr:{role:"gridcell",tabindex:day.future?"-1":"0","aria-label":label,title:label}});});
+    const head = section.createDiv({ cls:"pdl-heatmap-head" }); const copy=head.createDiv(); copy.createEl("h3",{text:L("Review Consistency", "Mức độ đều đặn")}); copy.createEl("p",{text:L(`${formatCount(total)} reviews across ${active} active days · last 26 weeks`, `${formatCount(total)} lượt ôn trong ${active} ngày · 26 tuần qua`)});
+    const legend=head.createDiv({cls:"pdl-heatmap-legend",attr:{"aria-label":L("Activity intensity legend", "Chú giải mức độ hoạt động")}}); legend.createSpan({text:L("Less", "Ít")}); [0,1,2,3,4].forEach(level=>legend.createSpan({cls:`pdl-heatmap-swatch level-${level}`})); legend.createSpan({text:L("More", "Nhiều")});
+    const body=section.createDiv({cls:"pdl-heatmap-body"}); const labels=body.createDiv({cls:"pdl-heatmap-weekdays"});
+    const weekdayLabels = Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(locale(), { weekday: "short" }).format(new Date(2024, 0, 7 + index)));
+    weekdayLabels.forEach((label,index)=>labels.createSpan({text:index%2?label:""}));
+    const grid=body.createDiv({cls:"pdl-heatmap-grid",attr:{role:"grid","aria-label":L("Review activity for the last 26 weeks", "Hoạt động ôn tập 26 tuần qua")}});
+    days.forEach(day=>{const level=day.future?0:day.count===0?0:day.count===1?1:day.count<=4?2:day.count<=9?3:4;const dateLabel=new Intl.DateTimeFormat(locale(),{weekday:"long",month:"long",day:"numeric",year:"numeric"}).format(day.date);const label=L(`${dateLabel}: ${day.count} ${day.count===1?"review":"reviews"}`, `${dateLabel}: ${day.count} lượt ôn`);grid.createSpan({cls:`pdl-heatmap-cell level-${level}${day.future?" is-future":""}`,attr:{role:"gridcell",tabindex:day.future?"-1":"0","aria-label":label,title:label}});});
   }
 
   renderRows(list) {
@@ -244,32 +270,33 @@ export class PDLFlashcardView extends ItemView {
     const entries = [...grouped.entries()].sort((a, b) => {
       const dueA = a[1].filter(card => !this.plugin.settings.schedule[card.id] || this.plugin.settings.schedule[card.id].due <= Date.now()).length;
       const dueB = b[1].filter(card => !this.plugin.settings.schedule[card.id] || this.plugin.settings.schedule[card.id].due <= Date.now()).length;
-      return dueB - dueA || a[1][0].deckTitle.localeCompare(b[1][0].deckTitle, "en");
+      return dueB - dueA || a[1][0].deckTitle.localeCompare(b[1][0].deckTitle, locale());
     });
-    const pageCount = Math.max(1, Math.ceil(entries.length / this.deckPageSize));
+    const pageSize = Math.max(1, Number(this.plugin.settings.decksPerPage) || 5);
+    const pageCount = Math.max(1, Math.ceil(entries.length / pageSize));
     this.deckPage = Math.min(this.deckPage, pageCount - 1);
-    const visible = entries.slice(this.deckPage * this.deckPageSize, (this.deckPage + 1) * this.deckPageSize);
+    const visible = entries.slice(this.deckPage * pageSize, (this.deckPage + 1) * pageSize);
     for (const [deckPath, cards] of visible) {
       const row = list.createDiv({ cls: "pdl-topic-row", attr: { tabindex: "0", role: "button" } });
       const icon = row.createSpan({ cls: "pdl-topic-icon" }); setIcon(icon, "folder-open");
       const copy = row.createDiv({ cls: "pdl-topic-copy" });
       copy.createEl("strong", { text: cards[0].deckTitle || cards[0].file.basename });
-      copy.createSpan({ text: `${formatCount(cards.length, cards.length >= 10000)} questions · source: ${cards[0].sourceFile ? cards[0].sourceFile.basename : cards[0].sourcePath || "unknown"}` });
+      copy.createSpan({ text: L(`${formatCount(cards.length, cards.length >= 10000)} questions · source: ${cards[0].sourceFile ? cards[0].sourceFile.basename : cards[0].sourcePath || "unknown"}`, `${formatCount(cards.length, cards.length >= 10000)} câu hỏi · nguồn: ${cards[0].sourceFile ? cards[0].sourceFile.basename : cards[0].sourcePath || "không rõ"}`) });
       const due = cards.filter(c => !this.plugin.settings.schedule[c.id] || this.plugin.settings.schedule[c.id].due <= Date.now()).length;
-      row.createSpan({ cls: "pdl-due-pill", text: due ? `${formatCount(due, due >= 10000)} due` : "Up to date", attr: { title: due ? `${formatCount(due)} cards due` : "No cards due" } });
+      row.createSpan({ cls: "pdl-due-pill", text: due ? L(`${formatCount(due, due >= 10000)} due`, `${formatCount(due, due >= 10000)} đến hạn`) : L("Up to date", "Đã ôn hết"), attr: { title: due ? L(`${formatCount(due)} cards due`, `${formatCount(due)} thẻ đến hạn`) : L("No cards due", "Không có thẻ đến hạn") } });
       const go = () => this.startSession(cards);
       row.onclick = go; row.onkeydown = e => { if (e.key === "Enter" || e.key === " ") go(); };
     }
     if (!entries.length) {
       const empty = list.createDiv({ cls: "pdl-empty" });
-      empty.createEl("strong", { text: "No flashcard decks yet" });
-      empty.createEl("p", { text: `Choose “Create deck” to write cards manually or generate a draft with AI.` });
+      empty.createEl("strong", { text: L("No flashcard decks yet", "Chưa có deck flashcard nào") });
+      empty.createEl("p", { text: L("Choose “Create deck” to write cards manually or generate a draft with AI.", "Chọn “Tạo deck” để tự viết thẻ hoặc tạo bản nháp bằng AI.") });
     } else if (pageCount > 1) {
       const pager = list.createDiv({ cls: "pdl-deck-pager" });
-      const summary = pager.createSpan({ text: `${formatCount(entries.length)} decks · Page ${this.deckPage + 1} of ${pageCount}` });
+      const summary = pager.createSpan({ text: L(`${formatCount(entries.length)} decks · Page ${this.deckPage + 1} of ${pageCount}`, `${formatCount(entries.length)} deck · Trang ${this.deckPage + 1}/${pageCount}`) });
       const controls = pager.createDiv();
-      const previous = controls.createEl("button", { text: "Previous" }); previous.disabled = this.deckPage === 0; previous.onclick = () => { this.deckPage--; this.renderRows(list); };
-      const next = controls.createEl("button", { text: "Next" }); next.disabled = this.deckPage >= pageCount - 1; next.onclick = () => { this.deckPage++; this.renderRows(list); };
+      const previous = controls.createEl("button", { text: L("Previous", "Trước") }); previous.disabled = this.deckPage === 0; previous.onclick = () => { this.deckPage--; this.renderRows(list); };
+      const next = controls.createEl("button", { text: L("Next", "Sau") }); next.disabled = this.deckPage >= pageCount - 1; next.onclick = () => { this.deckPage++; this.renderRows(list); };
     }
   }
 
@@ -292,8 +319,8 @@ export class PDLFlashcardView extends ItemView {
     }
     if (!selected.length) {
       new Notice(skipped
-        ? "No flashcards are available for this session (suspended or buried cards are excluded)."
-        : "No flashcards are available for this session.");
+        ? L("No flashcards are available for this session (suspended or buried cards are excluded).", "Không có flashcard nào cho phiên này (thẻ tạm dừng hoặc bị ẩn đã được loại).")
+        : L("No flashcards are available for this session.", "Không có flashcard nào cho phiên này."));
       return;
     }
     this.session = selected;
@@ -308,35 +335,46 @@ export class PDLFlashcardView extends ItemView {
     const card = this.session[this.index];
     const root = this.containerEl.children[1]; root.empty(); root.addClass("pdl-flashcard");
     const bar = root.createDiv({ cls: "pdl-review-bar" });
-    const back = bar.createEl("button", { cls: "pdl-icon-button", attr: { "aria-label": "Exit review" } }); setIcon(back, "x"); back.onclick = () => this.renderDashboard();
+    const back = bar.createEl("button", { cls: "pdl-icon-button", attr: { "aria-label": L("Exit review", "Thoát ôn tập") } }); setIcon(back, "x"); back.onclick = () => this.renderDashboard();
     // Undo only makes sense once at least one card in this session was graded.
-    const undo = bar.createEl("button", { cls: "pdl-icon-button pdl-undo-button", attr: { "aria-label": "Undo last answer", title: "Undo last answer (Ctrl+Z)" } });
+    const undo = bar.createEl("button", { cls: "pdl-icon-button pdl-undo-button", attr: { "aria-label": L("Undo last answer", "Hoàn tác câu trả lời trước"), title: L("Undo last answer (Ctrl+Z)", "Hoàn tác câu trả lời trước (Ctrl+Z)") } });
     setIcon(undo, "undo-2");
     undo.disabled = !this.undoStack.length;
     undo.onclick = () => void this.undoLastGrade();
-    bar.createSpan({ cls: "pdl-folio", text: `CARD ${String(this.index + 1).padStart(2,"0")} / ${String(this.session.length).padStart(2,"0")}` });
+    bar.createSpan({ cls: "pdl-folio", text: L(`CARD ${String(this.index + 1).padStart(2,"0")} / ${String(this.session.length).padStart(2,"0")}`, `THẺ ${String(this.index + 1).padStart(2,"0")} / ${String(this.session.length).padStart(2,"0")}`) });
     const progress = bar.createDiv({ cls: "pdl-progress" }); progress.createDiv({ cls: "pdl-progress-fill", attr: { style: `width:${(this.index / this.session.length) * 100}%` } });
-    const source = bar.createEl("button", { cls: "pdl-source-button", text: card.sourceFile ? card.sourceFile.basename : card.deckTitle }); setIcon(source.createSpan(), "external-link");
+    // A long note name used to stretch (and then crush) the review bar. The button
+    // now keeps a fixed label and moves the real name into the tooltip.
+    const sourceName = card.sourceFile
+      ? card.sourceFile.basename
+      : (card.deckTitle || card.file?.basename || L("Vault", "Vault"));
+    const source = bar.createEl("button", {
+      cls: "pdl-source-button",
+      attr: { title: sourceName, "aria-label": L(`Open ${sourceName}`, `Mở ${sourceName}`) }
+    });
+    source.createSpan({ cls: "pdl-source-button-label", text: card.sourceFile ? L("Open note", "Mở note") : L("Open deck", "Mở deck") });
+    setIcon(source.createSpan({ cls: "pdl-source-button-icon" }), "external-link");
     source.onclick = () => card.sourceFile ? this.app.workspace.getLeaf("tab").openFile(card.sourceFile) : this.app.workspace.getLeaf("tab").openFile(card.file);
 
     const stage = root.createDiv({ cls: "pdl-review-stage" });
     const chapter = stage.createDiv({ cls: "pdl-review-chapter" });
-    chapter.createSpan({ text: card.type === "cloze" ? "CLOZE RECALL" : "RECALL PROMPT" });
-    chapter.createEl("strong", { text: card.file.parent ? card.file.parent.name : "Vault" });
+    chapter.createSpan({ text: card.type === "cloze" ? L("CLOZE RECALL", "ÔN CLOZE") : L("RECALL PROMPT", "GỢI NHỚ") });
+    const folderName = card.file.parent ? card.file.parent.name : L("Vault", "Vault");
+    chapter.createEl("strong", { text: truncateLabel(folderName, 32), attr: { title: folderName } });
     
     const cardEl = stage.createDiv({ cls: "pdl-review-card" });
 
     // Top Card Header Container
     const cardHeader = cardEl.createDiv({ cls: "pdl-card-header" });
     const isShowingQuestion = !this.revealed || this.showQuestionMode;
-    const labelText = !this.revealed ? "RECALL BEFORE REVEALING" : (isShowingQuestion ? "QUESTION VIEW" : "SOURCE ANSWER");
+    const labelText = !this.revealed ? L("RECALL BEFORE REVEALING", "NHỚ TRƯỚC KHI MỞ ĐÁP ÁN") : (isShowingQuestion ? L("QUESTION VIEW", "XEM CÂU HỎI") : L("SOURCE ANSWER", "ĐÁP ÁN"));
     
     // Label + TTS button group
     const labelBox = cardHeader.createDiv({ cls: "pdl-card-label-box" });
     if (this.revealed) labelBox.addClass("is-answer");
     labelBox.createSpan({ cls: "pdl-card-label", text: labelText });
 
-    const ttsBtn = labelBox.createEl("button", { cls: "pdl-tts-button", attr: { "aria-label": "Read aloud", title: "Read aloud (TTS)" } });
+    const ttsBtn = labelBox.createEl("button", { cls: "pdl-tts-button", attr: { "aria-label": L("Read aloud", "Đọc to"), title: L("Read aloud (TTS)", "Đọc to (TTS)") } });
     setIcon(ttsBtn, "volume-2");
     ttsBtn.onclick = (e) => {
       e.stopPropagation();
@@ -350,28 +388,28 @@ export class PDLFlashcardView extends ItemView {
       this.index++;
       this.renderReview();
     };
-    const suspendBtn = labelBox.createEl("button", { cls: "pdl-tts-button pdl-suspend-button", attr: { "aria-label": "Suspend this card", title: "Suspend this card (hide from reviews)" } });
+    const suspendBtn = labelBox.createEl("button", { cls: "pdl-tts-button pdl-suspend-button", attr: { "aria-label": L("Suspend this card", "Tạm dừng thẻ này"), title: L("Suspend this card (hide from reviews)", "Tạm dừng thẻ này (ẩn khỏi các phiên ôn)") } });
     setIcon(suspendBtn, "pause-circle");
     suspendBtn.onclick = async (e) => {
       e.stopPropagation();
       await this.plugin.setSuspended(card, true);
-      new Notice(`Đã tạm dừng thẻ: "${truncateLabel(card.question)}".`, 2500);
+      new Notice(L(`Card suspended: "${truncateLabel(card.question)}".`, `Đã tạm dừng thẻ: "${truncateLabel(card.question)}".`), 2500);
       skipCard();
     };
-    const buryBtn = labelBox.createEl("button", { cls: "pdl-tts-button pdl-bury-button", attr: { "aria-label": "Bury until tomorrow", title: "Bury until tomorrow" } });
+    const buryBtn = labelBox.createEl("button", { cls: "pdl-tts-button pdl-bury-button", attr: { "aria-label": L("Bury until tomorrow", "Ẩn đến mai"), title: L("Bury until tomorrow", "Ẩn đến mai") } });
     setIcon(buryBtn, "eye-off");
     buryBtn.onclick = async (e) => {
       e.stopPropagation();
       await this.plugin.buryCard(card);
-      new Notice(`Đã ẩn thẻ đến mai: "${truncateLabel(card.question)}".`, 2500);
+      new Notice(L(`Card buried until tomorrow: "${truncateLabel(card.question)}".`, `Đã ẩn thẻ đến mai: "${truncateLabel(card.question)}".`), 2500);
       skipCard();
     };
     
     // Toggle View button when revealed
     if (this.revealed) {
-      const toggleBtn = cardHeader.createEl("button", { 
-        cls: "pdl-toggle-view", 
-        text: isShowingQuestion ? "→ Xem đáp án" : "← Xem câu hỏi" 
+      const toggleBtn = cardHeader.createEl("button", {
+        cls: "pdl-toggle-view",
+        text: isShowingQuestion ? L("→ Show answer", "→ Xem đáp án") : L("← Show question", "← Xem câu hỏi")
       });
       toggleBtn.onclick = (e) => {
         e.stopPropagation();
@@ -403,14 +441,14 @@ export class PDLFlashcardView extends ItemView {
         this.renderChoices(answer, card);
       } else if (!this.revealed) {
         answer.addClass("is-freeform");
-        answer.createEl("p", { cls: "pdl-prompt", text: "Say it aloud, write it down, or reconstruct the answer in your mind." });
-        const reveal = answer.createEl("button", { cls: "pdl-reveal", text: "Reveal answer" });
+        answer.createEl("p", { cls: "pdl-prompt", text: L("Say it aloud, write it down, or reconstruct the answer in your mind.", "Hãy nói to, viết ra, hoặc tự dựng lại câu trả lời trong đầu.") });
+        const reveal = answer.createEl("button", { cls: "pdl-reveal", text: L("Reveal answer", "Hiện đáp án") });
         reveal.onclick = () => this.reveal();
-        answer.createEl("kbd", { cls: "pdl-reveal-hint", text: "Space" });
+        answer.createEl("kbd", { cls: "pdl-reveal-hint", text: L("Space", "Space") });
       }
 
       if (this.revealed) {
-        const backToAns = qBox.createEl("button", { cls: "pdl-reveal pdl-back-to-answer", text: "Quay lại đáp án & Đánh giá →" });
+        const backToAns = qBox.createEl("button", { cls: "pdl-reveal pdl-back-to-answer", text: L("Back to answer & rating →", "Quay lại đáp án & Đánh giá →") });
         backToAns.onclick = () => {
           this.showQuestionMode = false;
           this.renderReview();
@@ -422,18 +460,19 @@ export class PDLFlashcardView extends ItemView {
 
       const isMcq = card.type === "multiple-choice" && this.selectedChoice !== null;
       const isRight = isMcq ? this.selectedChoice === card.answer : null;
-      const statusText = isMcq ? (isRight ? "CHÍNH XÁC" : "CHƯA ĐÚNG") : "ĐÁP ÁN CHÍNH XÁC";
-      const result = answerBox.createDiv({ cls: `pdl-card-result${isMcq ? (isRight ? " is-correct" : " is-wrong") : " is-neutral"}` });
-      result.createSpan({ cls: "pdl-card-result-status", text: statusText });
-
+      // The result banner is only meaningful for a picked MCQ answer. For a basic
+      // or cloze card it duplicated the "ĐÁP ÁN CHÍNH XÁC" label below.
       if (isMcq) {
+        const result = answerBox.createDiv({ cls: `pdl-card-result${isRight ? " is-correct" : " is-wrong"}` });
+        result.createSpan({ cls: "pdl-card-result-status", text: isRight ? L("CORRECT", "CHÍNH XÁC") : L("NOT QUITE", "CHƯA ĐÚNG") });
         const mcqSummary = result.createDiv({ cls: "pdl-mcq-summary" });
-        if (isRight) {
-          mcqSummary.innerHTML = `Lựa chọn của bạn: <strong class="pdl-text-correct">${formatRichCodeAware(this.selectedChoice)}</strong> — Chính xác!`;
-        } else {
-          mcqSummary.innerHTML = `Lựa chọn của bạn: <span class="pdl-text-wrong">${formatRichCodeAware(this.selectedChoice)}</span><span class="pdl-mcq-divider">|</span>Đáp án đúng: <strong class="pdl-text-correct">${formatRichCodeAware(card.answer)}</strong>`;
-        }
-        wireCodeToggles(mcqSummary);
+        const appendRow = (label, value, kind) => {
+          const row = mcqSummary.createDiv({ cls: "pdl-mcq-row" });
+          row.createSpan({ cls: "pdl-mcq-label", text: label });
+          row.createSpan({ cls: `pdl-mcq-value is-${kind}`, text: String(value ?? "") });
+        };
+        appendRow(L("Your choice", "Lựa chọn của bạn"), this.selectedChoice, isRight ? "correct" : "wrong");
+        if (!isRight) appendRow(L("Correct answer", "Đáp án đúng"), card.answer, "correct");
       }
 
       const answerText = card.type === "cloze" ? parseCloze(card.question).answers.join(", ") : card.answer;
@@ -442,14 +481,14 @@ export class PDLFlashcardView extends ItemView {
 
       // Answer section
       const ansSection = mainAnsEl.createDiv({ cls: "pdl-answer-section" });
-      ansSection.createEl("div", { cls: "pdl-section-label", text: "ĐÁP ÁN CHÍNH XÁC" });
+      ansSection.createEl("div", { cls: "pdl-section-label", text: L("CORRECT ANSWER", "ĐÁP ÁN CHÍNH XÁC") });
       const ansBody = ansSection.createDiv({ cls: "pdl-section-body" });
       this.renderCardText(ansBody, answerText, { sourcePath: card.sourcePath || (card.file ? card.file.path : "") });
 
       // Explanation section
       if (card.explanation) {
         const expSection = mainAnsEl.createDiv({ cls: "pdl-explanation-section" });
-        expSection.createEl("div", { cls: "pdl-section-label", text: "GIẢI THÍCH CHI TIẾT" });
+        expSection.createEl("div", { cls: "pdl-section-label", text: L("DETAILED EXPLANATION", "GIẢI THÍCH CHI TIẾT") });
         const expBody = expSection.createDiv({ cls: "pdl-section-body" });
         this.renderCardText(expBody, card.explanation, { sourcePath: card.sourcePath || (card.file ? card.file.path : "") });
       }
@@ -486,10 +525,10 @@ export class PDLFlashcardView extends ItemView {
   }
 
   renderRatings(stage, card) {
-    const hint = stage.createEl("p", { cls: "pdl-rate-hint", text: "Rate what you recalled—not how familiar the answer looks" });
+    const hint = stage.createEl("p", { cls: "pdl-rate-hint", text: L("Rate what you recalled—not how familiar the answer looks", "Đánh giá mức độ nhớ được—không phải mức quen mắt của đáp án") });
     hint.setAttr("aria-live", "polite");
     const ratings = stage.createDiv({ cls: "pdl-ratings" });
-    [[1,"Again","10 min"],[2,"Hard","Sooner"],[3,"Good","On schedule"],[4,"Easy","Longer"]].forEach(([grade,label,sub]) => {
+    [[1,L("Again","Lại"),L("10 min","10 phút")],[2,L("Hard","Khó"),L("Sooner","Sớm hơn")],[3,L("Good","Tốt"),L("On schedule","Đúng lịch")],[4,L("Easy","Dễ"),L("Longer","Lâu hơn")]].forEach(([grade,label,sub]) => {
       const button = ratings.createEl("button", { cls: `pdl-rate pdl-rate-${grade}` });
       button.createEl("kbd", { text: String(grade) }); button.createEl("strong", { text: label }); button.createSpan({ text: sub });
       button.onclick = () => this.submitGrade(grade);
@@ -521,7 +560,7 @@ export class PDLFlashcardView extends ItemView {
         this.requeueCounts.set(card.id, count + 1);
         this.session.push(card);
         this.undoStack[this.undoStack.length - 1].requeued = true;
-        new Notice(`"${truncateLabel(card.question)}" sẽ quay lại trong phiên này.`, 1800);
+        new Notice(L(`"${truncateLabel(card.question)}" will come back later in this session.`, `"${truncateLabel(card.question)}" sẽ quay lại trong phiên này.`), 1800);
       }
     }
     this.index++;
@@ -534,7 +573,7 @@ export class PDLFlashcardView extends ItemView {
   /** Reverts the most recent grade and puts the user back on that card. */
   async undoLastGrade() {
     const entry = this.undoStack.pop();
-    if (!entry) { new Notice("Không còn thao tác nào để hoàn tác."); return; }
+    if (!entry) { new Notice(L("There is nothing left to undo.", "Không còn thao tác nào để hoàn tác.")); return; }
     const schedule = this.plugin.settings.schedule;
     if (entry.schedule) schedule[entry.cardId] = entry.schedule;
     else delete schedule[entry.cardId];
@@ -551,7 +590,7 @@ export class PDLFlashcardView extends ItemView {
     this.revealed = false;
     this.selectedChoice = null;
     this.showQuestionMode = false;
-    new Notice(`Đã hoàn tác: "${truncateLabel(card ? card.question : "")}".`, 1800);
+    new Notice(L(`Undone: "${truncateLabel(card ? card.question : "")}".`, `Đã hoàn tác: "${truncateLabel(card ? card.question : "")}".`), 1800);
     this.renderReview();
   }
 
@@ -559,15 +598,15 @@ export class PDLFlashcardView extends ItemView {
     const root = this.containerEl.children[1]; root.empty(); root.addClass("pdl-flashcard");
     const box = root.createDiv({ cls: "pdl-summary" });
     const icon = box.createSpan({ cls: "pdl-summary-icon" }); setIcon(icon, "sparkles");
-    box.createEl("h2", { text: "Review complete" });
+    box.createEl("h2", { text: L("Review complete", "Hoàn thành phiên ôn") });
     const remembered = this.grades.filter(g => g >= 3).length;
-    box.createEl("p", { text: `You recalled ${remembered} of ${this.grades.length} cards. Forgotten and difficult cards will return sooner.` });
+    box.createEl("p", { text: L(`You recalled ${remembered} of ${this.grades.length} cards. Forgotten and difficult cards will return sooner.`, `Bạn nhớ ${remembered}/${this.grades.length} thẻ. Thẻ quên và thẻ khó sẽ quay lại sớm hơn.`) });
     const actions = box.createDiv({ cls: "pdl-summary-actions" });
     if (this.undoStack?.length) {
-      const undo = actions.createEl("button", { text: "Undo last answer" });
+      const undo = actions.createEl("button", { text: L("Undo last answer", "Hoàn tác câu trả lời trước") });
       undo.onclick = () => void this.undoLastGrade();
     }
-    const home = actions.createEl("button", { text: "Back to overview" }); home.onclick = () => this.renderDashboard();
-    const again = actions.createEl("button", { cls: "mod-cta", text: "Start another session" }); again.onclick = () => this.startSession();
+    const home = actions.createEl("button", { text: L("Back to overview", "Về tổng quan") }); home.onclick = () => this.renderDashboard();
+    const again = actions.createEl("button", { cls: "mod-cta", text: L("Start another session", "Bắt đầu phiên mới") }); again.onclick = () => this.startSession();
   }
 }
