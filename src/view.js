@@ -524,11 +524,35 @@ export class PDLFlashcardView extends ItemView {
     });
   }
 
+  /** Mirror the scheduling formula in review.js to preview the next interval. */
+  previewInterval(previous, grade) {
+    const maxDays = Number(this.plugin.settings.maxIntervalDays) || 36500;
+    let iv;
+    if (grade === 1) iv = 10 / 1440;                                  // 10 min
+    else if (grade === 2) iv = Math.max(1, previous.interval * 1.35 || 1);
+    else if (grade === 3) iv = Math.max(2, previous.interval * 2.4  || 2);
+    else                  iv = Math.max(4, previous.interval * 3.6  || 4);
+    return Math.min(iv, maxDays);
+  }
+
+  /** Format an interval (in days) as a human-readable string. */
+  formatInterval(iv) {
+    if (iv < 1) {
+      const mins = Math.round(iv * 1440);
+      return L(`${mins} min`, `${mins} phút`);
+    }
+    const days = Math.round(iv);
+    return L(`${days} day${days !== 1 ? "s" : ""}`, `${days} ngày`);
+  }
+
   renderRatings(stage, card) {
     const hint = stage.createEl("p", { cls: "pdl-rate-hint", text: L("Rate what you recalled—not how familiar the answer looks", "Đánh giá mức độ nhớ được—không phải mức quen mắt của đáp án") });
     hint.setAttr("aria-live", "polite");
     const ratings = stage.createDiv({ cls: "pdl-ratings" });
-    [[1,L("Again","Lại"),L("10 min","10 phút")],[2,L("Hard","Khó"),L("Sooner","Sớm hơn")],[3,L("Good","Tốt"),L("On schedule","Đúng lịch")],[4,L("Easy","Dễ"),L("Longer","Lâu hơn")]].forEach(([grade,label,sub]) => {
+    const previous = this.plugin.settings.schedule[card.id] || { interval: 0 };
+    [[1,L("Again","Lại")],[2,L("Hard","Khó")],[3,L("Good","Tốt")],[4,L("Easy","Dễ")]].forEach(([grade, label]) => {
+      const iv  = this.previewInterval(previous, grade);
+      const sub = this.formatInterval(iv);
       const button = ratings.createEl("button", { cls: `pdl-rate pdl-rate-${grade}` });
       button.createEl("kbd", { text: String(grade) }); button.createEl("strong", { text: label }); button.createSpan({ text: sub });
       button.onclick = () => this.submitGrade(grade);

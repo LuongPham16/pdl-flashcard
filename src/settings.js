@@ -1,12 +1,93 @@
-/** Settings UI. */
+/** Settings UI – tabbed: General | AI */
 import { PluginSettingTab, Setting, Notice, normalizePath } from "obsidian";
 import { DEFAULT_AI_PROMPTS } from "./constants.js";
 import { setLanguage, L } from "./i18n.js";
 
-export class PDLFlashcardSettingTab extends PluginSettingTab {
-  constructor(app, plugin) { super(app, plugin); this.plugin = plugin; }
+/* ─── Model lists per provider (fallback when API fetch fails) ─── */
+const KNOWN_MODELS = {
+  openai:   ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+  gemini:   ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
+  deepseek: ["deepseek-chat", "deepseek-reasoner"],
+  claude:   ["claude-opus-4-5", "claude-sonnet-4-5", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
+  custom:   [],
+};
 
-  /** Re-render the open view after a language change without losing a review. */
+/* ─── Fetch available models from provider API ─── */
+async function fetchModels(provider, apiKey, endpoint) {
+  try {
+    if (provider === "openai" || provider === "custom" || provider === "deepseek") {
+      const base = endpoint
+        ? endpoint.replace(/\/chat\/completions.*$/, "")
+        : provider === "deepseek"
+          ? "https://api.deepseek.com"
+          : "https://api.openai.com/v1";
+      const url = base.replace(/\/$/, "") + "/models";
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const ids = (json.data || []).map(m => m.id).filter(Boolean).sort();
+      return ids.length ? ids : KNOWN_MODELS[provider] || [];
+    }
+    if (provider === "gemini") {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const ids = (json.models || [])
+        .map(m => m.name?.replace("models/", ""))
+        .filter(id => id && id.startsWith("gemini"))
+        .sort();
+      return ids.length ? ids : KNOWN_MODELS.gemini;
+    }
+    // Claude: no public models list endpoint – return static list
+    return KNOWN_MODELS[provider] || [];
+  } catch {
+    return KNOWN_MODELS[provider] || [];
+  }
+}
+
+/* ─── Test connection ─── */
+async function testConnection(provider, apiKey, endpoint, model) {
+  if (!apiKey) throw new Error(L("API key is empty.", "API key trống."));
+  const testModel = model || (KNOWN_MODELS[provider]?.[0] ?? "gpt-4o-mini");
+
+  if (provider === "gemini") {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${apiKey}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }], generationConfig: { maxOutputTokens: 1 } }),
+    });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message || `HTTP ${res.status}`); }
+    return;
+  }
+  if (provider === "claude") {
+    const url = endpoint || "https://api.anthropic.com/v1/messages";
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({ model: testModel, max_tokens: 1, messages: [{ role: "user", content: "hi" }] }),
+    });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message || `HTTP ${res.status}`); }
+    return;
+  }
+  // openai / deepseek / custom
+  const url = endpoint || (provider === "deepseek"
+    ? "https://api.deepseek.com/chat/completions"
+    : "https://api.openai.com/v1/chat/completions");
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: testModel, max_tokens: 1, messages: [{ role: "user", content: "hi" }] }),
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message || `HTTP ${res.status}`); }
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+export class PDLFlashcardSettingTab extends PluginSettingTab {
+  constructor(app, plugin) { super(app, plugin); this.plugin = plugin; this._tab = "general"; }
+
   refreshView() {
     const view = this.plugin.getView();
     if (!view) return;
@@ -16,217 +97,354 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
 
   display() {
     const { containerEl } = this; containerEl.empty();
-    containerEl.createEl("h2", { text: L("PDL Flashcard Settings", "Cài đặt PDL Flashcard") });
 
-    containerEl.createEl("h3", { text: L("Appearance", "Giao diện") });
-    new Setting(containerEl)
+    /* ── Tab bar ── */
+    const tabBar = containerEl.createDiv({ cls: "pdl-settings-tabs" });
+    const tabs = [
+      { id: "general",  label: L("General",  "Chung")        },
+      { id: "ai",       label: L("AI",       "AI")            },
+      { id: "feedback", label: L("Feedback", "Phản hồi") + " 💬" },
+    ];
+    tabs.forEach(({ id, label }) => {
+      const btn = tabBar.createEl("button", { text: label, cls: "pdl-settings-tab" + (this._tab === id ? " is-active" : "") });
+      btn.onclick = () => { this._tab = id; this.display(); };
+    });
+
+    /* ── Tab content ── */
+    const panel = containerEl.createDiv({ cls: "pdl-settings-panel" });
+    if (this._tab === "general")  this._renderGeneral(panel);
+    else if (this._tab === "ai")   this._renderAI(panel);
+    else                           this._renderFeedback(panel);
+  }
+
+  /* ─────────────────── GENERAL TAB ─────────────────── */
+  _renderGeneral(el) {
+    el.createEl("h3", { text: L("Appearance", "Giao diện") });
+    new Setting(el)
       .setName(L("Language", "Ngôn ngữ"))
       .setDesc(L("Language used for buttons, dialogs and notices.", "Ngôn ngữ dùng cho nút, hộp thoại và thông báo."))
-      .addDropdown(dropdown => dropdown
+      .addDropdown(d => d
         .addOption("en", "English")
         .addOption("vi", "Tiếng Việt")
         .setValue(this.plugin.settings.language || "en")
-        .onChange(async value => {
-          this.plugin.settings.language = value;
-          setLanguage(value);
+        .onChange(async v => {
+          this.plugin.settings.language = v;
+          setLanguage(v);
           await this.plugin.saveData(this.plugin.settings);
-          this.display();
-          this.refreshView();
+          this.display(); this.refreshView();
         }));
-    new Setting(containerEl)
+    new Setting(el)
       .setName(L("Decks per page", "Số deck mỗi trang"))
       .setDesc(L("How many decks are listed on one page of the library. Default: 5.", "Số deck hiển thị trên một trang thư viện. Mặc định: 5."))
-      .addSlider(slider => slider
-        .setLimits(1, 50, 1)
-        .setDynamicTooltip()
+      .addSlider(s => s.setLimits(1, 50, 1).setDynamicTooltip()
         .setValue(Math.max(1, Number(this.plugin.settings.decksPerPage) || 5))
-        .onChange(async value => {
-          this.plugin.settings.decksPerPage = Math.max(1, Number(value) || 5);
+        .onChange(async v => {
+          this.plugin.settings.decksPerPage = Math.max(1, Number(v) || 5);
           await this.plugin.saveData(this.plugin.settings);
           const view = this.plugin.getView();
           if (view && !view.session?.length) view.renderDashboard();
         }));
 
-    containerEl.createEl("h3", { text: L("Library", "Thư viện") });
-    new Setting(containerEl).setName(L("Flashcard folder", "Thư mục flashcard")).setDesc(L("Stores deck notes linked to their source notes.", "Nơi lưu các note deck, liên kết với note nguồn.")).addText(text => text
+    el.createEl("h3", { text: L("Library", "Thư viện") });
+    new Setting(el).setName(L("Flashcard folder", "Thư mục flashcard")).setDesc(L("Stores deck notes linked to their source notes.", "Nơi lưu các note deck, liên kết với note nguồn.")).addText(t => t
       .setValue(this.plugin.settings.outputFolder)
-      .onChange(async value => { this.plugin.settings.outputFolder = normalizePath(value.trim() || "06 - Flashcards"); await this.plugin.ensureOutputFolder(); await this.plugin.saveData(this.plugin.settings); }));
-    new Setting(containerEl).setName(L("Source folders", "Thư mục nguồn")).setDesc(L("Comma-separated. The plugin only reads Markdown source notes.", "Phân cách bằng dấu phẩy. Plugin chỉ đọc note Markdown nguồn.")).addTextArea(text => text
+      .onChange(async v => { this.plugin.settings.outputFolder = normalizePath(v.trim() || "06 - Flashcards"); await this.plugin.ensureOutputFolder(); await this.plugin.saveData(this.plugin.settings); }));
+    new Setting(el).setName(L("Source folders", "Thư mục nguồn")).setDesc(L("Comma-separated. The plugin only reads Markdown source notes.", "Phân cách bằng dấy phẩy. Plugin chỉ đọc note Markdown nguồn.")).addTextArea(t => t
       .setValue(this.plugin.settings.sourceFolders.join(", "))
-      .onChange(async value => { this.plugin.settings.sourceFolders = value.split(",").map(v => v.trim()).filter(Boolean); await this.plugin.saveData(this.plugin.settings); }));
-    new Setting(containerEl).setName(L("Cards per session", "Số thẻ mỗi phiên")).setDesc(L("8–20 cards keeps a review session focused and manageable.", "8–20 thẻ giúp phiên ôn tập vừa sức và tập trung.")).addSlider(slider => slider
+      .onChange(async v => { this.plugin.settings.sourceFolders = v.split(",").map(x => x.trim()).filter(Boolean); await this.plugin.saveData(this.plugin.settings); }));
+    new Setting(el).setName(L("Cards per session", "Số thẻ mỗi phiên")).setDesc(L("8–20 cards keeps a review session focused and manageable.", "8–20 thẻ giúp phiên ôn tập vừa sức và tập trung.")).addSlider(s => s
       .setLimits(5, 30, 1).setDynamicTooltip().setValue(this.plugin.settings.sessionSize)
-      .onChange(async value => { this.plugin.settings.sessionSize = value; await this.plugin.saveData(this.plugin.settings); }));
+      .onChange(async v => { this.plugin.settings.sessionSize = v; await this.plugin.saveData(this.plugin.settings); }));
 
-    containerEl.createEl("h3", { text: L("Review behaviour", "Hành vi ôn tập") });
-    new Setting(containerEl)
+    el.createEl("h3", { text: L("Review behaviour", "Hành vi ôn tập") });
+    new Setting(el)
       .setName(L("Re-show forgotten cards in the same session", "Hiện lại thẻ đã quên trong cùng phiên"))
       .setDesc(L("A card answered \"Again\" is queued once more at the end of the session, like Anki's relearning step.", "Thẻ bị chọn \"Again\" sẽ quay lại cuối phiên, giống bước học lại của Anki."))
-      .addToggle(toggle => toggle
-        .setValue(this.plugin.settings.requeueForgotten !== false)
-        .onChange(async value => { this.plugin.settings.requeueForgotten = value; await this.plugin.saveData(this.plugin.settings); }));
-    new Setting(containerEl)
+      .addToggle(t => t.setValue(this.plugin.settings.requeueForgotten !== false)
+        .onChange(async v => { this.plugin.settings.requeueForgotten = v; await this.plugin.saveData(this.plugin.settings); }));
+    new Setting(el)
       .setName(L("Re-show limit per card", "Giới hạn hiện lại mỗi thẻ"))
       .setDesc(L("How many times one forgotten card may come back within a single session. 0 disables re-showing.", "Số lần một thẻ đã quên được quay lại trong một phiên. 0 là tắt."))
-      .addSlider(slider => slider
-        .setLimits(0, 5, 1).setDynamicTooltip().setValue(Number(this.plugin.settings.requeueLimit ?? 2))
-        .onChange(async value => { this.plugin.settings.requeueLimit = value; await this.plugin.saveData(this.plugin.settings); }));
-    new Setting(containerEl)
+      .addSlider(s => s.setLimits(0, 5, 1).setDynamicTooltip().setValue(Number(this.plugin.settings.requeueLimit ?? 2))
+        .onChange(async v => { this.plugin.settings.requeueLimit = v; await this.plugin.saveData(this.plugin.settings); }));
+    new Setting(el)
       .setName(L("Leech threshold", "Ngưỡng leech"))
       .setDesc(L("Auto-suspend a card after this many lapses so it can be rewritten. 0 disables leech detection.", "Tự tạm dừng thẻ sau số lần quên này để viết lại. 0 là tắt phát hiện leech."))
-      .addSlider(slider => slider
-        .setLimits(0, 20, 1).setDynamicTooltip().setValue(Number(this.plugin.settings.leechThreshold ?? 8))
-        .onChange(async value => { this.plugin.settings.leechThreshold = value; await this.plugin.saveData(this.plugin.settings); }));
-    new Setting(containerEl)
+      .addSlider(s => s.setLimits(0, 20, 1).setDynamicTooltip().setValue(Number(this.plugin.settings.leechThreshold ?? 8))
+        .onChange(async v => { this.plugin.settings.leechThreshold = v; await this.plugin.saveData(this.plugin.settings); }));
+    new Setting(el)
       .setName(L("Maximum interval (days)", "Khoảng ôn tối đa (ngày)"))
       .setDesc(L("No card is scheduled further out than this.", "Không thẻ nào được lên lịch xa hơn mốc này."))
-      .addText(text => text
-        .setPlaceholder("36500")
-        .setValue(String(this.plugin.settings.maxIntervalDays ?? 36500))
-        .onChange(async value => {
-          const days = Math.max(1, Math.floor(Number(value) || 36500));
-          this.plugin.settings.maxIntervalDays = days;
-          await this.plugin.saveData(this.plugin.settings);
-        }));
+      .addText(t => t.setPlaceholder("36500").setValue(String(this.plugin.settings.maxIntervalDays ?? 36500))
+        .onChange(async v => { this.plugin.settings.maxIntervalDays = Math.max(1, Math.floor(Number(v) || 36500)); await this.plugin.saveData(this.plugin.settings); }));
+  }
 
-    containerEl.createEl("h3", { text: L("AI Settings", "Cài đặt AI") });
-    containerEl.createEl("p", { text: L("Configure AI models and API keys for generating flashcards.", "Cấu hình model và API key để tạo flashcard bằng AI.") });
-
+  /* ─────────────────── AI TAB ─────────────────── */
+  _renderAI(el) {
     const ai = this.plugin.settings.ai;
-    new Setting(containerEl)
-      .setName(L("AI Provider", "Nhà cung cấp AI"))
-      .setDesc(L("Select the AI provider to use.", "Chọn nhà cung cấp AI để sử dụng."))
-      .addDropdown(dropdown => dropdown
-        .addOption("openai", "OpenAI")
-        .addOption("gemini", "Gemini (Google)")
-        .addOption("deepseek", "DeepSeek")
-        .addOption("claude", "Claude (Anthropic)")
-        .addOption("custom", L("Custom (OpenAI-compatible)", "Tùy chỉnh (tương thích OpenAI)"))
-        .setValue(ai.provider || "openai")
-        .onChange(async value => {
-          ai.provider = value;
-          await this.plugin.saveData(this.plugin.settings);
-          this.display();
-        }));
-
     const provider = ai.provider || "openai";
-    const providerName = provider === "openai" ? "OpenAI" : provider === "gemini" ? "Gemini" : provider === "deepseek" ? "DeepSeek" : provider === "claude" ? "Claude" : L("your custom provider", "nhà cung cấp tùy chỉnh");
+    const providerLabel = { openai: "OpenAI", gemini: "Gemini", deepseek: "DeepSeek", claude: "Claude", custom: L("Custom", "Tùy chỉnh") }[provider] ?? provider;
 
-    const keySetting = new Setting(containerEl)
-      .setName(L("API Key", "API Key"))
-      .setDesc(L(`Enter your API key for ${providerName}.`, `Nhập API key cho ${providerName}.`));
+    /* ── Provider ── */
+    el.createEl("h3", { text: L("AI Provider", "Nhà cung cấp AI") });
+    new Setting(el)
+      .setName(L("Provider", "Nhà cung cấp"))
+      .setDesc(L("Select the AI provider to use.", "Chọn nhà cung cấp AI để sử dụng."))
+      .addDropdown(d => d
+        .addOption("openai",   "OpenAI")
+        .addOption("gemini",   "Gemini (Google)")
+        .addOption("deepseek", "DeepSeek")
+        .addOption("claude",   "Claude (Anthropic)")
+        .addOption("custom",   L("Custom (OpenAI-compatible)", "Tùy chỉnh (tương thích OpenAI)"))
+        .setValue(provider)
+        .onChange(async v => { ai.provider = v; await this.plugin.saveData(this.plugin.settings); this.display(); }));
 
-    keySetting.addText(text => {
-      text.inputEl.type = "password";
-      let placeholder = "sk-...";
-      if (provider === "gemini") placeholder = "AIzaSy...";
-      text.setPlaceholder(placeholder)
-        .setValue(ai.apiKeys[provider] || "")
-        .onChange(async value => {
-          ai.apiKeys[provider] = value.trim();
-          if (provider === "openai") ai.apiKey = value.trim();
+    /* ── API Key + Test ── */
+    el.createEl("h3", { text: L("Authentication", "Xác thực") });
+    let apiKeyInput = null;
+    const keySetting = new Setting(el)
+      .setName("API Key")
+      .setDesc(L(`API key for ${providerLabel}.`, `API key cho ${providerLabel}.`));
+
+    keySetting.addText(t => {
+      apiKeyInput = t;
+      t.inputEl.type = "password";
+      t.inputEl.style.cssText = "width:260px;font-family:monospace";
+      t.setPlaceholder(provider === "gemini" ? "AIzaSy..." : "sk-...")
+        .setValue(ai.apiKeys?.[provider] || "")
+        .onChange(async v => {
+          if (!ai.apiKeys) ai.apiKeys = {};
+          ai.apiKeys[provider] = v.trim();
+          if (provider === "openai") ai.apiKey = v.trim();
           await this.plugin.saveData(this.plugin.settings);
         });
     });
 
-    new Setting(containerEl)
-      .setName(L("Model", "Model"))
-      .setDesc(L("The model name to request.", "Tên model sẽ gọi."))
-      .addText(text => {
-        let placeholder = "gpt-4o-mini";
-        if (provider === "gemini") placeholder = "gemini-2.5-flash";
-        else if (provider === "deepseek") placeholder = "deepseek-chat";
-        else if (provider === "claude") placeholder = "claude-3-5-sonnet-20241022";
+    /* status badge */
+    const statusEl = el.createDiv({ cls: "pdl-conn-status" });
+    const setStatus = (ok, msg) => {
+      statusEl.empty();
+      const icon = statusEl.createSpan({ cls: "pdl-conn-icon" });
+      icon.textContent = ok === true ? "✓" : ok === false ? "✗" : "⟳";
+      if (ok === true) icon.style.color = "#22c55e";
+      else if (ok === false) icon.style.color = "#ef4444";
+      else icon.style.color = "#f59e0b";
+      statusEl.createSpan({ text: " " + msg });
+    };
 
-        text.setPlaceholder(placeholder)
-          .setValue(ai.models[provider] || "")
-          .onChange(async value => {
-            ai.models[provider] = value.trim();
-            if (provider === "openai") ai.model = value.trim();
+    new Setting(el)
+      .setName(L("Test connection", "Kiểm tra kết nối"))
+      .setDesc(L("Verify that the API key and endpoint are working.", "Xác nhận API key và endpoint hoạt động."))
+      .addButton(btn => btn
+        .setButtonText(L("Test", "Kiểm tra"))
+        .setCta()
+        .onClick(async () => {
+          const key = ai.apiKeys?.[provider] || "";
+          const ep  = ai.endpoints?.[provider] || "";
+          const mdl = ai.models?.[provider] || "";
+          btn.setDisabled(true).setButtonText(L("Testing…", "Đang kiểm tra…"));
+          setStatus(null, L("Connecting…", "Đang kết nối…"));
+          try {
+            await testConnection(provider, key, ep, mdl);
+            setStatus(true, L("Connected successfully!", "Kết nối thành công!"));
+          } catch (err) {
+            setStatus(false, err.message);
+          } finally {
+            btn.setDisabled(false).setButtonText(L("Test", "Kiểm tra"));
+          }
+        }));
+
+    /* ── Model ── */
+    el.createEl("h3", { text: "Model" });
+
+    /* model dropdown (populated after fetch) */
+    const modelRow = new Setting(el)
+      .setName(L("Model", "Model"))
+      .setDesc(L("Choose the model to use for flashcard generation.", "Chọn model để tạo flashcard."));
+
+    let modelDropdown = null;
+    const currentModel = ai.models?.[provider] || "";
+
+    const buildModelDropdown = (models) => {
+      modelRow.controlEl.empty();
+      modelRow.addDropdown(d => {
+        modelDropdown = d;
+        const set = new Set(models);
+        if (currentModel && !set.has(currentModel)) d.addOption(currentModel, currentModel);
+        models.forEach(m => d.addOption(m, m));
+        d.setValue(ai.models?.[provider] || models[0] || "");
+        d.onChange(async v => {
+          if (!ai.models) ai.models = {};
+          ai.models[provider] = v;
+          if (provider === "openai") ai.model = v;
+          await this.plugin.saveData(this.plugin.settings);
+        });
+      });
+    };
+
+    /* seed with known models immediately */
+    buildModelDropdown(KNOWN_MODELS[provider] || [currentModel].filter(Boolean));
+
+    /* fetch real list */
+    modelRow.addButton(btn => btn
+      .setButtonText(L("Fetch models", "Tải danh sách model"))
+      .onClick(async () => {
+        const key = ai.apiKeys?.[provider] || "";
+        const ep  = ai.endpoints?.[provider] || "";
+        btn.setDisabled(true).setButtonText(L("Loading…", "Đang tải…"));
+        try {
+          const models = await fetchModels(provider, key, ep);
+          buildModelDropdown(models);
+          new Notice(L(`Loaded ${models.length} models.`, `Đã tải ${models.length} model.`), 2500);
+        } catch {
+          new Notice(L("Could not fetch model list.", "Không thể tải danh sách model."), 3000);
+        } finally {
+          btn.setDisabled(false).setButtonText(L("Fetch models", "Tải danh sách model"));
+        }
+      }));
+
+    /* manual override text */
+    new Setting(el)
+      .setName(L("Or type model name manually", "Hoặc nhập tên model thủ công"))
+      .setDesc(L("Overrides the dropdown above.", "Ghi đè lựa chọn ở trên."))
+      .addText(t => {
+        t.inputEl.style.width = "220px";
+        t.setPlaceholder(KNOWN_MODELS[provider]?.[0] || "")
+          .setValue(ai.models?.[provider] || "")
+          .onChange(async v => {
+            if (!ai.models) ai.models = {};
+            ai.models[provider] = v.trim();
+            if (provider === "openai") ai.model = v.trim();
             await this.plugin.saveData(this.plugin.settings);
           });
       });
 
+    /* ── Endpoint (not Gemini) ── */
     if (provider !== "gemini") {
-      new Setting(containerEl)
-        .setName(L("API Endpoint", "API Endpoint"))
-        .setDesc(L("The base URL for API requests.", "URL gốc cho các yêu cầu API."))
-        .addText(text => {
-          let placeholder = "https://api.openai.com/v1/chat/completions";
-          if (provider === "deepseek") placeholder = "https://api.deepseek.com/chat/completions";
-          else if (provider === "claude") placeholder = "https://api.anthropic.com/v1/messages";
-
-          text.setPlaceholder(placeholder)
-            .setValue(ai.endpoints[provider] || "")
-            .onChange(async value => {
-              ai.endpoints[provider] = value.trim();
-              if (provider === "openai") ai.endpoint = value.trim();
+      el.createEl("h3", { text: "API Endpoint" });
+      new Setting(el)
+        .setName(L("Base URL", "URL gốc"))
+        .setDesc(L("Leave blank to use the default for this provider.", "Để trống để dùng mặc định của nhà cung cấp."))
+        .addText(t => {
+          const placeholders = {
+            openai:   "https://api.openai.com/v1/chat/completions",
+            deepseek: "https://api.deepseek.com/chat/completions",
+            claude:   "https://api.anthropic.com/v1/messages",
+            custom:   "https://your-host/v1/chat/completions",
+          };
+          t.inputEl.style.width = "340px";
+          t.setPlaceholder(placeholders[provider] || "")
+            .setValue(ai.endpoints?.[provider] || "")
+            .onChange(async v => {
+              if (!ai.endpoints) ai.endpoints = {};
+              ai.endpoints[provider] = v.trim();
+              if (provider === "openai") ai.endpoint = v.trim();
               await this.plugin.saveData(this.plugin.settings);
             });
         });
     }
 
-    // AI Custom Prompts Management
-    containerEl.createEl("h3", { text: L("AI Custom Prompts", "Prompt AI tùy chỉnh") });
-    containerEl.createEl("p", { text: L("Create and customize AI prompt presets for flashcard generation. Use {basicCount}, {mcqCount}, and {clozeCount} as placeholders.", "Tạo và tùy chỉnh prompt cho việc sinh flashcard. Dùng {basicCount}, {mcqCount}, {clozeCount} làm biến.") });
+    /* ── Custom Prompts ── */
+    el.createEl("h3", { text: L("Custom Prompts", "Prompt tùy chỉnh") });
+    el.createEl("p", { text: L("Use {basicCount}, {mcqCount}, {clozeCount} as placeholders.", "Dùng {basicCount}, {mcqCount}, {clozeCount} làm biến."), cls: "setting-item-description" });
 
     const prompts = this.plugin.settings.aiPrompts || DEFAULT_AI_PROMPTS;
-
     prompts.forEach((promptItem, idx) => {
-      const pBox = containerEl.createDiv({ cls: "pdl-prompt-setting-box" });
+      const pBox = el.createDiv({ cls: "pdl-prompt-setting-box" });
       new Setting(pBox)
         .setName(L(`Preset ${idx + 1}: ${promptItem.name}`, `Preset ${idx + 1}: ${promptItem.name}`))
         .setDesc(promptItem.id === "default" ? L("Default System Prompt", "Prompt hệ thống mặc định") : L(`Preset ID: ${promptItem.id}`, `ID preset: ${promptItem.id}`))
-        .addExtraButton(btn => {
-          btn.setIcon("trash")
-            .setTooltip(L("Delete this prompt preset", "Xóa preset này"))
-            .onClick(async () => {
-              if (prompts.length <= 1) {
-                new Notice(L("You must keep at least one prompt preset.", "Phải giữ lại ít nhất một preset."));
-                return;
-              }
-              this.plugin.settings.aiPrompts.splice(idx, 1);
-              if (this.plugin.settings.selectedPromptId === promptItem.id) {
-                this.plugin.settings.selectedPromptId = this.plugin.settings.aiPrompts[0].id;
-              }
-              await this.plugin.saveData(this.plugin.settings);
-              this.display();
-            });
-        });
-
-      new Setting(pBox)
-        .setName(L("Preset Name", "Tên preset"))
-        .addText(text => text
-          .setValue(promptItem.name)
-          .onChange(async val => {
-            promptItem.name = val.trim() || L(`Preset ${idx + 1}`, `Preset ${idx + 1}`);
-            await this.plugin.saveData(this.plugin.settings);
-          }));
-
-      new Setting(pBox)
-        .setName(L("Prompt Template", "Mẫu prompt"))
-        .addTextArea(text => text
-          .setValue(promptItem.template)
-          .onChange(async val => {
-            promptItem.template = val;
-            await this.plugin.saveData(this.plugin.settings);
-          }));
+        .addExtraButton(btn => btn.setIcon("trash").setTooltip(L("Delete", "Xóa")).onClick(async () => {
+          if (prompts.length <= 1) { new Notice(L("You must keep at least one prompt preset.", "Phải giữ lại ít nhất một preset.")); return; }
+          this.plugin.settings.aiPrompts.splice(idx, 1);
+          if (this.plugin.settings.selectedPromptId === promptItem.id)
+            this.plugin.settings.selectedPromptId = this.plugin.settings.aiPrompts[0].id;
+          await this.plugin.saveData(this.plugin.settings); this.display();
+        }));
+      new Setting(pBox).setName(L("Preset Name", "Tên preset")).addText(t => t.setValue(promptItem.name).onChange(async v => { promptItem.name = v.trim() || L(`Preset ${idx + 1}`, `Preset ${idx + 1}`); await this.plugin.saveData(this.plugin.settings); }));
+      new Setting(pBox).setName(L("Prompt Template", "Mẫu prompt")).addTextArea(t => t.setValue(promptItem.template).onChange(async v => { promptItem.template = v; await this.plugin.saveData(this.plugin.settings); }));
     });
 
-    new Setting(containerEl)
+    new Setting(el)
       .setName(L("Add New Prompt Preset", "Thêm preset mới"))
       .setDesc(L("Create a new prompt template with custom instructions.", "Tạo mẫu prompt mới với hướng dẫn riêng."))
-      .addButton(btn => btn
-        .setButtonText(L("Add Prompt Preset", "Thêm preset"))
-        .setCta()
-        .onClick(async () => {
-          const newId = `custom_${Date.now()}`;
-          this.plugin.settings.aiPrompts.push({
-            id: newId,
-            name: L("New Prompt Preset", "Preset mới"),
-            template: `Create flashcards from the note below.\n- {basicCount} Q&A cards (type="basic", question, answer, explanation, tags)\n- {mcqCount} MCQ cards (type="multiple-choice", question, 4 choices, answer, explanation, tags)\n- {clozeCount} Cloze cards (type="cloze", question with {{c1::hidden text}}, answer, explanation, tags)`
-          });
-          await this.plugin.saveData(this.plugin.settings);
-          this.display();
-        }));
-  }}
+      .addButton(btn => btn.setButtonText(L("Add Preset", "Thêm preset")).setCta().onClick(async () => {
+        const newId = `custom_${Date.now()}`;
+        this.plugin.settings.aiPrompts.push({
+          id: newId, name: L("New Prompt Preset", "Preset mới"),
+          template: `Create flashcards from the note below.\n- {basicCount} Q&A cards (type="basic", question, answer, explanation, tags)\n- {mcqCount} MCQ cards (type="multiple-choice", question, 4 choices, answer, explanation, tags)\n- {clozeCount} Cloze cards (type="cloze", question with {{c1::hidden text}}, answer, explanation, tags)`,
+        });
+        await this.plugin.saveData(this.plugin.settings); this.display();
+      }));
+  }
+
+  /* ─────────────────── FEEDBACK TAB ─────────────────── */
+  _renderFeedback(el) {
+    const GMAIL = "luongpham162k@gmail.com";
+
+    /* Hero banner */
+    const hero = el.createDiv({ cls: "pdl-fb-hero" });
+    hero.createDiv({ cls: "pdl-fb-emoji", text: "💌" });
+    hero.createEl("h3", { text: L("Send feedback to the developer", "Gửi phản hồi cho tác giả"), cls: "pdl-fb-title" });
+    hero.createEl("p", {
+      text: L(
+        "Your feedback helps improve PDL Flashcard. Bug reports, feature ideas, and general thoughts are all welcome!",
+        "Phản hồi của bạn giúp PDL Flashcard ngày càng tốt hơn. Báo lỗi, đề xuất tính năng hay ý kiến chung đều được hoan nghênh!"
+      ),
+      cls: "pdl-fb-desc",
+    });
+
+    /* Form card */
+    const card = el.createDiv({ cls: "pdl-fb-card" });
+
+    /* Type selector */
+    card.createEl("label", { text: L("Type", "Loại phản hồi"), cls: "pdl-fb-label" });
+    const typeWrap = card.createDiv({ cls: "pdl-fb-types" });
+    const types = [
+      { id: "bug",     icon: "🐛", label: L("Bug report",   "Báo lỗi")       },
+      { id: "feature", icon: "✨", label: L("Feature idea", "Đề xuất tính năng") },
+      { id: "other",   icon: "💬", label: L("Other",        "Khác")             },
+    ];
+    let selectedType = "bug";
+    const typeBtns = {};
+    types.forEach(({ id, icon, label }) => {
+      const btn = typeWrap.createEl("button", { cls: "pdl-fb-type-btn" + (id === selectedType ? " is-active" : "") });
+      btn.createSpan({ text: icon, cls: "pdl-fb-type-icon" });
+      btn.createSpan({ text: label });
+      typeBtns[id] = btn;
+      btn.onclick = () => {
+        selectedType = id;
+        Object.entries(typeBtns).forEach(([k, b]) => b.classList.toggle("is-active", k === id));
+      };
+    });
+
+    /* Subject */
+    card.createEl("label", { text: L("Subject", "Tiêu đề"), cls: "pdl-fb-label" });
+    const subjectInput = card.createEl("input", { cls: "pdl-fb-input", attr: { type: "text", placeholder: L("Briefly describe your feedback…", "Mô tả ngắn gọn phản hồi của bạn…") } });
+
+    /* Message */
+    card.createEl("label", { text: L("Message", "Nội dung"), cls: "pdl-fb-label" });
+    const msgInput = card.createEl("textarea", { cls: "pdl-fb-textarea", attr: { placeholder: L("Describe in detail. Include steps to reproduce if reporting a bug.", "Mô tả chi tiết. Nếu báo lỗi, hãy nêu các bước để tái hiện lỗi."), rows: "6" } });
+
+    /* Plugin version info (auto-append) */
+    const manifest = this.plugin.manifest;
+    const versionLine = `\n\n---\nPlugin: PDL Flashcard v${manifest?.version ?? "?"}  |  Obsidian: ${this.app.version ?? "?"}`;
+
+    /* Send button */
+    const actions = card.createDiv({ cls: "pdl-fb-actions" });
+    const sendBtn = actions.createEl("button", { cls: "pdl-fb-send", text: L("Open in mail app  ✉️", "Mở ứng dụng mail  ✉️") });
+    sendBtn.onclick = () => {
+      const subj = subjectInput.value.trim() || L(`[PDL Flashcard] ${selectedType}`, `[PDL Flashcard] ${selectedType}`);
+      const typeLabel = types.find(t => t.id === selectedType)?.label ?? selectedType;
+      const body = `[${typeLabel}]\n\n${msgInput.value.trim()}${versionLine}`;
+      const mailto = `mailto:${GMAIL}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+      window.open(mailto);
+    };
+
+    /* Direct email hint */
+    const hint = el.createDiv({ cls: "pdl-fb-hint" });
+    hint.createSpan({ text: L("Or email directly: ", "Hoặc email trực tiếp: ") });
+    const link = hint.createEl("a", { text: GMAIL, href: `mailto:${GMAIL}`, cls: "pdl-fb-email-link" });
+    link.setAttr("target", "_blank");
+  }
+}
