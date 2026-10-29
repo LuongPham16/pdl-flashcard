@@ -1,5 +1,8 @@
 # Contributing to PDL Flashcard
 
+Thanks for helping improve the plugin. This project is plain JavaScript bundled for
+Obsidian; small, focused pull requests are easiest to review.
+
 ## Getting set up
 
 ```bash
@@ -8,57 +11,67 @@ npm run build
 npm test
 ```
 
-Requires Node 18+ (developed on Node 24). Run `npm run deploy` once `.deploy.json` is
-configured to test inside Obsidian.
+Requires Node 18+ (developed on Node 24). `npm run deploy` copies the build into the
+vault configured in `.deploy.json` or `OBSIDIAN_VAULT` / `OBSIDIAN_PLUGIN_DIR`.
 
 ## Before opening a pull request
 
-1. `npm test` — the suite runs against the **built bundle**, so run
-   `npm run build` first if you changed `src/`. On Node 22+ `npm run test:inproc`
-   runs all suites in one process, which also works in sandboxes that block the
-   test runner's per-file child processes.
-2. `npm run typecheck` — `tsc --noEmit` over `src/`. The code is plain JavaScript with
-   `allowJs`, so this checks syntax and whatever JSDoc types are present.
-3. Keep the change focused. One feature or fix per PR.
+1. Run `npm run build` after changing `src/` or `styles.css`. The tests run against
+   `dist/main.js`, not the source modules.
+2. Run `npm test`. In restricted sandboxes where per-file child processes are blocked,
+   use `npm run test:inproc`.
+3. Run `npm run typecheck` (`tsc --noEmit` over the JavaScript source).
+4. Keep the change focused: one feature or fix per PR. Update `CHANGELOG.md` when the
+   user-visible behaviour changes.
 
-## Architecture in one minute
+## Architecture
 
-- `src/index.js` is the only entry point; esbuild bundles it to `dist/main.js` as
-  CommonJS with `module.exports = PDLFlashcardPlugin` (Obsidian's expectation).
-- `src/plugin.js` holds the `Plugin` subclass and nothing else: onload wiring,
-  commands, menu items, view registration.
-- `storage.js`, `review.js` and `ai.js` export classes whose methods are copied onto
-  the plugin prototype. Add a method there when it needs `this.settings` / `this.app`;
-  add it to `utils.js` when it is a pure function.
-- The view (`view.js`) and modals never own data — they take the plugin instance and
-  call its methods.
-- Deck data lives in the note itself (`pdl-flashcards` JSON block). Anything that
-  changes the stored card shape needs a migration path in `onload`.
+- `src/index.js` is the only bundle entry. esbuild emits CommonJS with
+  `module.exports = PDLFlashcardPlugin`.
+- `src/plugin.js` owns the `Plugin` subclass: lifecycle, commands, menus, view
+  registration, source-folder policy and settings normalization.
+- `storage.js`, `review.js` and `ai.js` export classes whose methods are applied to the
+  plugin prototype by `applyMixin`. Put methods that need `this.settings` / `this.app`
+  there; pure helpers belong in `utils.js` or `import-parse.js`.
+- `view.js` and `modals/` receive the plugin instance and call its methods. They must not
+  own persisted data.
+- Deck data lives in the `pdl-flashcards` JSON block inside a Markdown note. Any change
+  to the stored card shape needs a migration in `onload`.
+- Source notes must pass `isConfiguredSource()`: Markdown, inside a configured source
+  folder, and not inside an excluded/output folder. Use it for every new picker or menu.
+- AI-generated tags must be filtered against tags already present on saved cards. Never
+  let the model introduce a new tag.
 
 ## Code style
 
-- 2-space indent, double quotes, semicolons, no TypeScript-only syntax in `src/`
-  (it must stay valid in the esbuild bundle).
+- 2-space indentation, double quotes, semicolons.
+- No TypeScript-only syntax in `src/`; it must remain valid in the esbuild bundle.
 - Comments explain *why*, not *what*.
-- No new dependency unless it is small, maintained, and bundled — the plugin must load
-  without network access.
+- No new runtime dependency unless it is small, maintained and bundleable. The plugin
+  must load without network access.
+
+## Tests
+
+- Tests use Node's built-in test runner and an Obsidian stub in `tests/helpers/`.
+- Cover data-integrity paths: importing, appending to an existing deck, batch failure
+  isolation, source-folder filtering, TTS masking and AI tag filtering.
+- Add a regression test for every bug fix.
 
 ## Releasing
 
-1. Update `CHANGELOG.md`.
-2. `npm version patch|minor|major` — the `version` script syncs `manifest.json` and
+1. Update `CHANGELOG.md` and the README if behaviour or setup changed.
+2. Run `npm version patch|minor|major`; the `version` script syncs `manifest.json` and
    `versions.json`.
-3. `npm run build:prod && npm test`.
-4. Create a GitHub release tagged with the version, and attach the three build
-   artifacts from `dist/`: `main.js`, `manifest.json`, `styles.css`.
+3. Run `npm run build:prod && npm test`.
+4. Push `master` and the version tag. The GitHub Actions release workflow builds and
+   attaches `main.js`, `manifest.json` and `styles.css` as individual assets.
 
-## Submitting to the community plugin registry
+## Community registry
 
-This repo is laid out to satisfy the
-[official requirements](https://docs.obsidian.md/Plugins/Releasing/Submit+your+plugin):
+The layout follows the
+[official submission requirements](https://docs.obsidian.md/Plugins/Releasing/Submit+your+plugin):
 
-- `manifest.json` at the root with a valid `minAppVersion`.
-- `versions.json` mapping plugin versions to minimum app versions.
-- A release whose tag matches `manifest.json` and contains `main.js`, `manifest.json`,
-  `styles.css` as individual assets (not a zip).
-- MIT license, README, and a repository name matching the plugin id (`pdl-flashcard`).
+- `manifest.json` at the repository root with a valid `minAppVersion`;
+- `versions.json` mapping plugin versions to minimum app versions;
+- a release tag matching `manifest.json`, with the three build files as individual assets;
+- MIT license, README and repository name matching the plugin id (`pdl-flashcard`).

@@ -5,16 +5,36 @@ import { cleanAndParseJSON, normalizeCardText } from "./utils.js";
 import { L } from "./i18n.js";
 
 /** Normalize every generated card before it reaches a draft or a deck. */
-function normalizeGeneratedCards(cards) {
+function normalizeGeneratedCards(cards, allowedTags = null) {
   return (Array.isArray(cards) ? cards : []).map(card => {
     const next = { ...card };
     for (const key of ["question", "answer", "explanation"]) {
       if (typeof next[key] === "string") next[key] = normalizeCardText(next[key]);
     }
     if (Array.isArray(next.choices)) next.choices = next.choices.map(choice => normalizeCardText(choice));
-    if (Array.isArray(next.tags)) next.tags = next.tags.map(tag => normalizeCardText(tag)).filter(Boolean);
+    if (Array.isArray(next.tags)) {
+      const tags = next.tags.map(tag => normalizeCardText(tag).trim()).filter(Boolean);
+      if (allowedTags) {
+        const seen = new Set();
+        next.tags = tags
+          .map(tag => allowedTags.get(tag.replace(/^#/, "").toLowerCase()))
+          .filter(tag => {
+            if (!tag) return false;
+            const key = tag.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+      } else {
+        next.tags = tags;
+      }
+    }
     return next;
   });
+}
+
+function tagKey(tag) {
+  return normalizeCardText(tag).replace(/^#/, "").trim().toLowerCase();
 }
 
 /** Mixed into PDLFlashcardPlugin in plugin.js. */
@@ -43,6 +63,22 @@ export class AiMethods {
     return this.requestAICards(selection, counts, promptId, intent);
   }
 
+  /** Tags already created by the user; AI may reuse these names only. */
+  async getExistingTags() {
+    const tags = new Map();
+    try {
+      const cards = await this.getCards();
+      for (const card of cards) {
+        for (const raw of card.tags || []) {
+          const value = normalizeCardText(raw).trim();
+          const key = tagKey(value);
+          if (key && !tags.has(key)) tags.set(key, value);
+        }
+      }
+    } catch (_) { /* tag validation is best-effort; generation still proceeds */ }
+    return tags;
+  }
+
   async requestAICards(content, counts, promptId = "default", extraInstruction = "") {
     const aiConfig = this.settings.ai;
     const provider = aiConfig.provider || "openai";
@@ -63,12 +99,18 @@ export class AiMethods {
       .replace(/\{mcqCount\}/g, String(counts.mcq || 0))
       .replace(/\{clozeCount\}/g, String(counts.cloze || 0));
 
+    const existingTags = await this.getExistingTags();
+    const allowedTags = [...existingTags.values()];
+    const tagRule = allowedTags.length
+      ? `ALLOWED TAGS (use only these exact names; if none fit a card, return an empty tags array; never invent a new tag): ${allowedTags.map(tag => `"${tag}"`).join(", ")}`
+      : "ALLOWED TAGS: none. Return an empty tags array for every card; never invent a tag.";
+
     const extra = extraInstruction ? `${extraInstruction}\n\n` : "";
-    const fullPrompt = `${extra}${promptText}\n\nNOTE CONTENT:\n${String(content || "").slice(0, 50000)}`;
+    const fullPrompt = `${extra}${promptText}\n\n${tagRule}\n\nNOTE CONTENT:\n${String(content || "").slice(0, 50000)}`;
 
     let response;
     if (provider === "gemini") {
-      const actualModel = model || "gemini-2.5-flash";
+      const actualModel = model || "gemini-3.8-flash";
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent?key=${apiKey}`;
       response = await requestUrl({
         url,
@@ -87,11 +129,11 @@ export class AiMethods {
       const content = response.json?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!content) throw new Error(L("The Gemini API response did not contain valid content.", "Phản hồi API Gemini không có nội dung hợp lệ."));
       const parsed = cleanAndParseJSON(content);
-      return normalizeGeneratedCards(parsed.cards);
+      return normalizeGeneratedCards(parsed.cards, existingTags);
 
     } else if (provider === "claude") {
       const actualEndpoint = endpoint || "https://api.anthropic.com/v1/messages";
-      const actualModel = model || "claude-3-5-sonnet-20241022";
+      const actualModel = model || "claude-sonnet-5-5";
       response = await requestUrl({
         url: actualEndpoint,
         method: "POST",
@@ -111,11 +153,11 @@ export class AiMethods {
       const content = response.json?.content?.[0]?.text;
       if (!content) throw new Error(L("The Claude API response did not contain valid content.", "Phản hồi API Claude không có nội dung hợp lệ."));
       const parsed = cleanAndParseJSON(content);
-      return normalizeGeneratedCards(parsed.cards);
+      return normalizeGeneratedCards(parsed.cards, existingTags);
 
     } else {
       const actualEndpoint = endpoint || "https://api.openai.com/v1/chat/completions";
-      const actualModel = model || "gpt-4o-mini";
+      const actualModel = model || "gpt-6-luna";
       response = await requestUrl({
         url: actualEndpoint,
         method: "POST",
@@ -137,7 +179,7 @@ export class AiMethods {
       const content = response.json?.choices?.[0]?.message?.content;
       if (!content) throw new Error(L("The AI response did not contain valid content.", "Phản hồi AI không có nội dung hợp lệ."));
       const parsed = cleanAndParseJSON(content);
-      return normalizeGeneratedCards(parsed.cards);
+      return normalizeGeneratedCards(parsed.cards, existingTags);
     }
   }
 }

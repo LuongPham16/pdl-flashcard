@@ -51,10 +51,26 @@ ${AI_FORMAT_RULES}`
   }
 ];
 
+/** Old shipped defaults; migrated forward on load so they never keep hitting retired models. */
+const LEGACY_DEFAULT_MODELS = {
+  openai: "gpt-4o-mini",
+  gemini: "gemini-2.5-flash",
+  deepseek: "deepseek-chat",
+  claude: "claude-3-5-sonnet-20241022"
+};
+
 const DEFAULTS = {
   schemaVersion: 3,
   language: "en",
   decksPerPage: 5,
+  defaultBasicCount: 4,
+  defaultMcqCount: 3,
+  defaultClozeCount: 3,
+  defaultReverseCards: false,
+  heatmapPalette: "blue",
+  heatmapShape: "square",
+  ttsVoice: "",
+  ttsRate: 1,
   outputFolder: "06 - Flashcards",
   sourceFolders: ["00 - Inbox", "02 - Projects", "03 - Area", "04 - Journal", "05 - Tasks", "99 - Archive"],
   excludedFolders: ["99 - Archive/Templates", "99 - Archive/PDL-Templates", "_agent", "Decks Templates", "Canvas decks"],
@@ -72,7 +88,7 @@ const DEFAULTS = {
   ai: {
     provider: "openai",
     endpoint: "https://api.openai.com/v1/chat/completions",
-    model: "gpt-4o-mini",
+    model: "gpt-6-luna",
     apiKey: "",
     apiKeys: {
       openai: "",
@@ -89,10 +105,10 @@ const DEFAULTS = {
       custom: ""
     },
     models: {
-      openai: "gpt-4o-mini",
-      gemini: "gemini-2.5-flash",
-      deepseek: "deepseek-chat",
-      claude: "claude-3-5-sonnet-20241022",
+      openai: "gpt-6-luna",
+      gemini: "gemini-3.8-flash",
+      deepseek: "deepseek-flash",
+      claude: "claude-sonnet-5-5",
       custom: ""
     }
   }
@@ -103,5 +119,6 @@ export {
   DAY,
   AI_FORMAT_RULES,
   DEFAULT_AI_PROMPTS,
+  LEGACY_DEFAULT_MODELS,
   DEFAULTS
 };

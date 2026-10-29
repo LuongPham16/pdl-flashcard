@@ -34,7 +34,7 @@ test("onload registers the view, commands and menus", async () => {
   plugin.ensureOutputFolder = async () => {};
   plugin.autoBackup = async () => {};
   await plugin.onload();
-  for (const id of ["open", "quick-review", "custom-study", "import-export", "create-deck", "create-deck-active-note", "open-or-create-active-note", "ai-from-selection", "open-manager", "open-statistics"]) {
+  for (const id of ["open", "quick-review", "custom-study", "import-export", "create-deck", "batch-from-folder", "create-deck-active-note", "open-or-create-active-note", "ai-from-selection", "open-manager", "open-statistics"]) {
     assert.ok(commands.includes(id), `command ${id} registered`);
   }
   assert.equal(events.length, 2, "file-menu and editor-menu handlers registered");

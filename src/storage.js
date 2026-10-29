@@ -182,7 +182,7 @@ export class StorageMethods {
     await this.writeDeck(card.file, raw, json, deck);
   }
 
-  async createDeck(sourceFile, cards, mode = "manual") {
+  async createDeck(sourceFile, cards, mode = "manual", options = {}) {
     await this.ensureOutputFolder();
     const stamp = new Date().toISOString().slice(0, 10);
     const safe = sourceFile.basename.replace(/[\\/:*?"<>|]/g, "-").trim();
@@ -196,7 +196,7 @@ export class StorageMethods {
     const payload = { version: 1, title: `Flashcards — ${sourceFile.basename}`, sourcePath: sourceFile.path, createdAt: new Date().toISOString(), generatedBy: mode, cards: normalized };
     const body = `---\ntype: flashcard-deck\nllm_managed: true\nsource_note: "[[${sourceFile.basename}]]"\nsource_path: "${sourceFile.path.replace(/"/g, '\\"')}"\ncard_count: ${normalized.length}\ngenerated_by: ${mode}\n---\n\n# Flashcards — ${sourceFile.basename}\n\nSource: [[${sourceFile.basename}]]\n\n> This deck is managed by PDL Flashcard. You may edit its structured JSON block when needed.\n\n\`\`\`pdl-flashcards\n${JSON.stringify(payload, null, 2)}\n\`\`\`\n`;
     const created = await this.app.vault.create(path, body);
-    new Notice(L(`Created ${normalized.length} flashcards in ${this.settings.outputFolder}.`, `Đã tạo ${normalized.length} flashcard trong ${this.settings.outputFolder}.`));
+    if (!options.silent) new Notice(L(`Created ${normalized.length} flashcards in ${this.settings.outputFolder}.`, `Đã tạo ${normalized.length} flashcard trong ${this.settings.outputFolder}.`));
     const view = this.getView(); if (view) await view.refresh();
     return created;
   }

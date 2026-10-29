@@ -104,23 +104,54 @@ function parseCloze(text) {
   return { hiddenPrompt, fullAnswer, answers };
 }
 
-function speakText(text) {
+/** Turn card Markdown into plain prose that a speech engine can pronounce. */
+function cleanForSpeech(text) {
+  return String(text || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[\[[^\]]*\]\]/g, " ")
+    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, target, alias) => alias || target)
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+\.)\s+/gm, " ")
+    .replace(/[*_~]{1,3}/g, "")
+    .replace(/\{\{(?:c\d+::)?([^}:]+)(?:::([^}]+))?\}\}/g, "$1")
+    .replace(/==([^=]+)==/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function pickSpeechVoice(synth, lang, preferred) {
+  const voices = typeof synth.getVoices === "function" ? synth.getVoices() || [] : [];
+  if (preferred) {
+    const selected = voices.find(voice => voice.voiceURI === preferred || voice.name === preferred);
+    if (selected) return selected;
+  }
+  return voices.find(voice => voice.lang === lang)
+    || voices.find(voice => String(voice.lang || "").toLowerCase().startsWith(`${lang.slice(0, 2).toLowerCase()}-`))
+    || null;
+}
+
+function speakText(text, options = {}) {
   if (!("speechSynthesis" in window)) {
     new Notice(L("Text-to-speech is not supported in this environment.", "Môi trường này không hỗ trợ đọc văn bản (TTS)."));
     return;
   }
-  window.speechSynthesis.cancel();
-  const clean = (text || "")
-    .replace(/<[^>]*>/g, "")
-    .replace(/\{\{(?:c\d+::)?([^}:]+)(?:::([^}]+))?\}\}/g, "$1")
-    .replace(/==([^=]+)==/g, "$1")
-    .trim();
+  const synth = window.speechSynthesis;
+  synth.cancel();
+  const clean = cleanForSpeech(text);
   if (!clean) return;
 
   const utterance = new SpeechSynthesisUtterance(clean);
   const isVietnamese = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i.test(clean);
-  utterance.lang = isVietnamese ? "vi-VN" : "en-US";
-  window.speechSynthesis.speak(utterance);
+  const lang = isVietnamese ? "vi-VN" : "en-US";
+  utterance.lang = lang;
+  const voice = pickSpeechVoice(synth, lang, options.voice);
+  if (voice) utterance.voice = voice;
+  const rate = Number(options.rate);
+  if (Number.isFinite(rate)) utterance.rate = Math.max(0.5, Math.min(2, rate));
+  synth.speak(utterance);
 }
 
 export {

@@ -1,7 +1,7 @@
 {
   "id": "pdl-flashcard",
   "name": "PDL Flashcard",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "1.8.10",
   "description": "AI-assisted flashcards inside Obsidian: generate decks from notes or highlighted text, review with adaptive scheduling.",
   "author": "PDL",

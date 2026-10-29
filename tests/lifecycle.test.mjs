@@ -29,6 +29,7 @@ async function boot({ saved = null, files = { "inbox/a.md": "# A" }, backup = fa
   plugin.ensureOutputFolder = async () => {};
   if (!backup) plugin.autoBackup = async () => {};
   await plugin.onload();
+  plugin.settings.sourceFolders = ["inbox"];
   return { app, plugin, commands, events, processors, tabs };
 }
 
@@ -46,15 +47,41 @@ test("onload migrates old settings and deep-merges the AI block", async () => {
   assert.equal(plugin.settings.ai.provider, "deepseek");
   assert.equal(plugin.settings.ai.apiKeys.openai, "sk-legacy", "legacy key copied into the provider map");
   assert.equal(plugin.settings.ai.endpoints.openai, "https://api.openai.com/v1/chat/completions", "default endpoint map kept");
-  assert.equal(plugin.settings.ai.models.openai, "gpt-4o-mini", "default model map kept");
+  assert.equal(plugin.settings.ai.models.openai, "gpt-6-luna", "current default model map kept");
   assert.equal(plugin.settings.ai.endpoints.deepseek, "https://api.deepseek.com/chat/completions", "defaults preserved");
   assert.equal(plugin.settings.ai.apiKeys.gemini, "");
 });
 
-test("onload defaults to English and five decks per page", async () => {
+test("onload defaults to English, five decks per page and current models", async () => {
   const { plugin } = await boot();
   assert.equal(plugin.settings.language, "en");
   assert.equal(plugin.settings.decksPerPage, 5);
+  assert.equal(plugin.settings.defaultBasicCount, 4);
+  assert.equal(plugin.settings.defaultMcqCount, 3);
+  assert.equal(plugin.settings.defaultClozeCount, 3);
+  assert.equal(plugin.settings.defaultReverseCards, false);
+  assert.equal(plugin.settings.heatmapPalette, "blue");
+  assert.equal(plugin.settings.heatmapShape, "square");
+  assert.deepEqual(plugin.settings.ai.models, {
+    openai: "gpt-6-luna",
+    gemini: "gemini-3.8-flash",
+    deepseek: "deepseek-flash",
+    claude: "claude-sonnet-5-5",
+    custom: ""
+  });
+});
+
+test("retired shipped model defaults migrate to current ones", async () => {
+  const { plugin } = await boot({
+    saved: {
+      schemaVersion: 3,
+      ai: { models: { openai: "gpt-4o-mini", gemini: "gemini-2.5-flash", deepseek: "deepseek-chat", claude: "claude-3-5-sonnet-20241022" } }
+    }
+  });
+  assert.equal(plugin.settings.ai.models.openai, "gpt-6-luna");
+  assert.equal(plugin.settings.ai.models.gemini, "gemini-3.8-flash");
+  assert.equal(plugin.settings.ai.models.deepseek, "deepseek-flash");
+  assert.equal(plugin.settings.ai.models.claude, "claude-sonnet-5-5");
 });
 
 test("the settings tab renders and wires the language and page-size controls", async () => {
@@ -135,6 +162,15 @@ test("isEligibleSource accepts markdown outside the output folder only", async (
   assert.equal(plugin.isEligibleSource({ path: "06 - Flashcards/sub/deck.md", extension: "md" }), false);
   assert.equal(plugin.isEligibleSource({ path: "inbox/a.png", extension: "png" }), false);
   assert.equal(plugin.isEligibleSource(null), false);
+});
+
+test("isConfiguredSource only accepts configured source folders", async () => {
+  const { plugin } = await boot();
+  plugin.settings.excludedFolders = ["inbox/private"];
+  assert.equal(plugin.isConfiguredSource({ path: "inbox/a.md", extension: "md" }), true);
+  assert.equal(plugin.isConfiguredSource({ path: "inbox/private/a.md", extension: "md" }), false, "excluded folder rejected");
+  assert.equal(plugin.isConfiguredSource({ path: "notes/a.md", extension: "md" }), false, "outside source folders rejected");
+  assert.equal(plugin.isConfiguredSource({ path: "06 - Flashcards/deck.md", extension: "md" }), false);
 });
 
 test("deck code blocks render a preview or an error", async () => {

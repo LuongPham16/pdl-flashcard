@@ -1,127 +1,67 @@
 # Changelog
 
 All notable changes to **PDL Flashcard** are recorded here.
-Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-versioning follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
-
-### Fixed
-
-- The answer view no longer prints "ĐÁP ÁN CHÍNH XÁC" twice for basic and cloze cards;
-  the empty result banner is gone and only the answer section keeps the label.
-- The review bar now has five grid columns for its five controls. The source button
-  used to fall into the 46px first column on a second row, where a long note name was
-  clipped to a tiny box.
-- The review source button shows the short label **Open note** (or **Open deck**) and
-  keeps the full name in its tooltip; long folder names are truncated in the chapter line.
-- Long deck names are truncated in the Studio save button and the selection banner.
-- Vietnamese card text is normalized to Unicode **NFC** when it is saved, read back and
-  rendered. Decomposed accents from AI output/imports no longer look like stray marks or
-  gaps ("nguồn" instead of "nguo\u0302\u0300n"), and existing decks are fixed on load too.
-- The multiple-choice result banner now uses compact label/value rows ("Your choice"
-  and "Correct answer") instead of injecting block HTML into inline spans, which broke
-  the layout into scattered lines and empty boxes.
-- Card content now uses a Vietnamese-capable reading stack (Times New Roman first)
-  because Georgia has no Vietnamese glyphs on Windows. The font is also applied inline
-  to rendered card text with kerning disabled, so an older cached `styles.css` cannot
-  bring the broken fallback back.
+## [1.0.1] - 2026-10-30
 
 ### Added
 
-- **Language setting (English / Tiếng Việt)** in *Settings → Appearance*. English is the
-  default; every screen, dialog, command, menu and notice switches language immediately.
-- **Decks per page** setting (1–50, default 5) for the dashboard library. The previous
-  fixed value of 5 is still the default.
-- Regression tests for the duplicate answer label, the source button tooltip, the
-  long-name truncation, both languages, the page-size setting, NFC normalization and the
-  inline reading font (111 tests total).
-
-## [1.0.0] - 2026-10-28
-
-First public release. The version restarts at 1.0.0 for the open-source launch;
-the 2.x entries below are the private development history.
-
-### Added
-
-- **A 98-test feature suite** covering spaced repetition, deck storage, AI provider
-  payloads, the dashboard/review view, formatting, plugin lifecycle and every dialog.
-  Tests run against the built bundle, so the shipped `main.js` is what gets exercised.
-- `npm run test:inproc` for environments that block the test runner's per-file child
-  processes (Node 22+).
-- `tests/README.md` with the coverage map and helper documentation.
+- **Bilingual interface** — English and Tiếng Việt, switchable in Settings. Commands,
+  dialogs, menus and notices update immediately.
+- **Tabbed Settings** — General, AI and Feedback tabs.
+- **Flashcard Studio** — manual drafting plus AI generation from a note or a highlighted
+  passage, with editable per-type counts and reverse-card generation.
+- **Batch from a folder** — choose all or selected notes in a configured source folder and
+  create/append one linked deck per note, with per-note success/error status.
+- **Target-note import** — import CSV/JSON cards into the deck of an existing note, or
+  create a standalone deck.
+- **Import delimiters** — auto-detect, comma, semicolon, tab, space, Anki `::` and pipe.
+  A right-click **Import selection as flashcards…** opens the Import dialog prefilled with
+  the selection and its note as target; validation only runs when Import is pressed.
+- **Card images** — insert from the vault or upload, rendered as centred, height-capped
+  blocks in questions, answers and explanations.
+- **Cloze typing and letter hints** — type each missing term, or click individual masked
+  letters to reveal hints at any position.
+- **Read aloud (TTS)** — choose a system voice and 0.5×–2× speed. Cloze prompts speak
+  masked blanks before reveal; MCQ reveals read every choice; Markdown is cleaned first.
+- **Heatmap styling** — cycle colour palettes from the legend and cycle cell shapes
+  (square, rounded, circle, diamond, hexagon).
+- **Deck navigation** — first, previous, direct page-number jump, next and last.
+- **Default cards per type** — Q&A / MCQ / cloze defaults for new AI drafts, plus an
+  optional reverse-card default.
+- **AI tag policy** — generated cards may only reuse tags already present on saved cards;
+  unknown tags are dropped and no matching tag means no tags.
+- **Current provider defaults** — OpenAI, Gemini, DeepSeek and Claude model fallbacks, plus
+  fetching available models from the provider where supported.
 
 ### Changed
 
-- **Repository restructured into a real plugin project.** The ~2,850-line `main.js`
-  was split into focused ES modules under `src/`, bundled with esbuild, and covered by
-  a Node test suite that runs against the built bundle. Behaviour is unchanged; this is
-  a pure refactor plus tooling (build, deploy, version sync, CI).
-  - New `dist/` build output; Obsidian still loads a single `main.js`.
-  - `npm run dev` / `build` / `build:prod` / `test` / `typecheck` / `deploy`.
-  - `versions.json` for the community plugin registry.
+- Only notes inside **Source folders** are offered by Studio, batch, import target, menus
+  and active-note commands. `excludedFolders` and the flashcard output folder are always
+  excluded.
+- The old *Cards per session* row is replaced by per-type card defaults; review sessions
+  keep the previous default cap.
+- English is the default UI language; Vietnamese is a first-class alternative.
+- Decks per page is configurable (1–50, default 5).
+- Cards, decks and AI output are normalized to Unicode **NFC** for consistent Vietnamese
+  rendering.
+- TTS and AI keys remain local to the vault; no plugin-operated cloud service is used.
 
 ### Fixed
 
-- Missing imports that made the card manager, statistics, studio, selection and settings
-  dialogs fail to open.
-- Multi-line code blocks crashed the fallback formatter (`codeHtml` was undefined).
-- `leechThreshold: 0` did not actually disable leech detection.
-- `DeleteFlashcardModal` was not exported, so deleting from the manager could not work.
+- Vietnamese font rendering: decomposed accents, missing glyphs and incorrect serif fonts
+  no longer break card text.
+- Duplicate "correct answer" banner on basic and cloze cards.
+- Long deck/source names truncate with tooltips instead of overflowing controls.
+- Source button no longer collapses into a narrow grid cell in the review bar.
+- MCQ result layout, checkbox alignment and reverse-card toggle alignment.
+- Single-line `Front Back` / `Question Answer` imports are no longer mistaken for a header.
+- Cloze TTS no longer speaks the hidden answer before reveal.
+- Malformed or empty AI/card data is handled without crashing the session.
 
-## [2.9.0] - 2026-10-13
+### Quality
 
-### Added
-
-- **Undo the last grade** — ↺ button in the review bar and `Ctrl/Cmd+Z`. Rolls back the
-  schedule entry, the review log, the streak list and the card re-queued by that grade.
-  Keeps 30 steps.
-- **Re-show forgotten cards in the same session** — a card graded "Again" is queued once
-  more at the end of the session (Anki-style relearning), limited per card (default 2).
-- **Suspend / Bury** — per-card controls in the review header and a suspend toggle in the
-  card manager; suspended and buried cards leave every queue and the due counts.
-- **Leech detection** — auto-suspend a card after N lapses (default 8) with a hint to
-  rewrite it.
-- **Maximum interval** setting (default 36500 days).
-- **Rendering through Obsidian's MarkdownRenderer** — questions, answers and explanations
-  now support images, `![[embeds]]`, LaTeX (`$…$`, `$$…$$`) and wikilinks. Cloze blanks
-  and highlights still render correctly.
-- Settings → *Review behaviour* for the new controls.
-
-### Fixed
-
-- Card text containing images, maths or embeds used to show as raw text.
-- Cloze markers could be lost when the text went through a Markdown render.
-- The "generate from selection" dialog no longer stretches to the full viewport height
-  (caused by `min-height: 100%` inherited from the dashboard class).
-- The Studio "Source note" row no longer squeezes its description into the icon box.
-
-## [2.8.0] - 2026-10-12
-
-### Added
-
-- **Generate flashcards from a highlighted passage** — select text, right-click →
-  *"Tạo flashcard AI từ đoạn bôi đen"*. The dialog shows the excerpt, card counts and
-  whether the note already has a deck.
-- Only the excerpt is sent to the model, with an instruction to stay inside it.
-- Notes without a deck get a new deck; notes that already have one get the new cards
-  appended (existing cards, `card_count` and hand-written prose preserved).
-- `Generate flashcards from selected text` command (visible only when text is selected).
-
-### Fixed
-
-- Card normalisation is shared by every path (manual, AI, import, append), so incomplete
-  cards are no longer written to disk and malformed multiple-choice cards degrade to
-  basic instead of disappearing on import.
-- Saving no longer creates an empty deck note.
-
-## [2.7.1]
-
-- Auto-backup of `data.json` into `backups/` (last 30 kept).
-- Reverse cards, live preview in the card editor, inline code styling, review card
-  redesign, AI output normalisation and prompt format rules.
-
-## [1.0.0] - 2024
-
-- Initial release: spaced repetition, AI generation (OpenAI, Gemini, DeepSeek, Claude),
-  basic / multiple-choice / cloze cards, custom study, streak and dashboard.
+- Regression suite expanded to **148 tests**, including AI tag filtering, import
+  delimiters, target-note appends, batch isolation, source-folder filtering, TTS masking,
+  image insertion, heatmap controls and review edge cases.
+- README, Vietnamese user guide and contributor guide rewritten for 1.0.1.

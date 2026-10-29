@@ -6,7 +6,7 @@
  * concern can be read, changed and tested on its own.
  */
 import { Plugin, Notice, setIcon, normalizePath } from "obsidian";
-import { VIEW_TYPE, AI_FORMAT_RULES, DEFAULT_AI_PROMPTS, DEFAULTS } from "./constants.js";
+import { VIEW_TYPE, AI_FORMAT_RULES, DEFAULT_AI_PROMPTS, LEGACY_DEFAULT_MODELS, DEFAULTS } from "./constants.js";
 import { formatRichInline } from "./formatting.js";
 import { normalizeCardText } from "./utils.js";
 import { setLanguage, L } from "./i18n.js";
@@ -16,6 +16,7 @@ import { AiMethods } from "./ai.js";
 import { PDLFlashcardView } from "./view.js";
 import { PDLFlashcardSettingTab } from "./settings.js";
 import { FlashcardStudioModal } from "./modals/studio.js";
+import { FlashcardBatchModal } from "./modals/batch.js";
 import { FlashcardSelectionAIModal } from "./modals/selection.js";
 import { FlashcardCustomStudyModal } from "./modals/study.js";
 import { FlashcardExportImportModal } from "./modals/import-export.js";
@@ -38,6 +39,19 @@ class PDLFlashcardPlugin extends Plugin {
     this.settings.selectedPromptId ||= "default";
     this.settings.language = this.settings.language === "vi" ? "vi" : "en";
     this.settings.decksPerPage = Math.max(1, Math.min(50, Number(this.settings.decksPerPage) || 5));
+    // The session-size control was replaced by per-type card counts; keep review
+    // sessions bounded at the previous default instead of a hidden stale value.
+    this.settings.sessionSize = DEFAULTS.sessionSize;
+    for (const key of ["defaultBasicCount", "defaultMcqCount", "defaultClozeCount"]) {
+      this.settings[key] = Math.max(0, Math.min(30, Number(this.settings[key]) || 0));
+    }
+    this.settings.defaultReverseCards = this.settings.defaultReverseCards === true;
+    this.settings.heatmapPalette = ["blue", "green", "orange", "purple"].includes(this.settings.heatmapPalette)
+      ? this.settings.heatmapPalette : "blue";
+    this.settings.heatmapShape = ["square", "rounded", "circle", "diamond", "hexagon"].includes(this.settings.heatmapShape)
+      ? this.settings.heatmapShape : "square";
+    this.settings.ttsVoice = String(this.settings.ttsVoice || "");
+    this.settings.ttsRate = Math.max(0.5, Math.min(2, Number(this.settings.ttsRate) || 1));
 
     // Older versions shipped built-in prompts without the output-format rules,
     // which is what made AI cards arrive with broken spacing and unformatted code.
@@ -66,6 +80,15 @@ class PDLFlashcardPlugin extends Plugin {
     if (legacyAi.model && !this.settings.ai.models.openai) {
       this.settings.ai.models.openai = legacyAi.model;
     }
+    // Old shipped defaults are retired by their providers; move them forward.
+    for (const [provider, oldModel] of Object.entries(LEGACY_DEFAULT_MODELS)) {
+      if (this.settings.ai.models[provider] === oldModel) {
+        this.settings.ai.models[provider] = DEFAULTS.ai.models[provider];
+      }
+    }
+    if (this.settings.ai.model === LEGACY_DEFAULT_MODELS.openai) {
+      this.settings.ai.model = DEFAULTS.ai.models.openai;
+    }
     this.applyLanguage();
     await this.ensureOutputFolder();
     this.registerView(VIEW_TYPE, leaf => new PDLFlashcardView(leaf, this));
@@ -83,36 +106,39 @@ class PDLFlashcardPlugin extends Plugin {
     }});
     this.addCommand({ id: "import-export", name: L("Import or export flashcards", "Nhập hoặc xuất flashcard"), callback: () => new FlashcardExportImportModal(this.app, this).open() });
     this.addCommand({ id: "create-deck", name: L("Create flashcards from a note", "Tạo flashcard từ một note"), callback: () => new FlashcardStudioModal(this.app, this).open() });
+    this.addCommand({ id: "batch-from-folder", name: L("Create decks from a folder", "Tạo deck từ folder"), callback: () => new FlashcardBatchModal(this.app, this).open() });
     this.addCommand({ id: "create-deck-active-note", name: L("Create flashcards from active note", "Tạo flashcard từ note đang mở"), checkCallback: checking => {
       const file = this.app.workspace.getActiveFile();
-      if (!this.isEligibleSource(file)) return false;
+      if (!this.isConfiguredSource(file)) return false;
       if (!checking) new FlashcardStudioModal(this.app, this, file).open();
       return true;
     }});
     this.addCommand({ id: "open-or-create-active-note", name: L("Open or create flashcards for active note", "Mở hoặc tạo flashcard cho note đang mở"), hotkeys: [{ modifiers: ["Mod", "Alt"], key: "k" }], checkCallback: checking => {
       const file = this.app.workspace.getActiveFile();
-      if (!this.isEligibleSource(file)) return false;
+      if (!this.isConfiguredSource(file)) return false;
       if (!checking) void this.openOrCreateForNote(file);
       return true;
     }});
     this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => {
-      if (!this.isEligibleSource(file)) return;
+      if (!this.isConfiguredSource(file)) return;
       menu.addItem(item => item.setTitle(L("Open or create flashcards", "Mở hoặc tạo flashcard")).setIcon("brain-circuit").onClick(() => void this.openOrCreateForNote(file)));
     }));
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor, view) => {
       const file = view?.file;
-      if (!this.isEligibleSource(file)) return;
+      if (!this.isConfiguredSource(file)) return;
       menu.addItem(item => item.setTitle(L("Open or create flashcards", "Mở hoặc tạo flashcard")).setIcon("brain-circuit").onClick(() => void this.openOrCreateForNote(file)));
       const rawSelection = editor?.getSelection?.() || "";
       const selectedText = normalizeCardText(rawSelection);
       if (!selectedText.trim()) return;
       menu.addItem(item => item.setTitle(L("Create AI flashcards from selection", "Tạo flashcard AI từ đoạn bôi đen")).setIcon("sparkles")
         .onClick(() => new FlashcardSelectionAIModal(this.app, this, file, selectedText).open()));
+      menu.addItem(item => item.setTitle(L("Import selection as flashcards…", "Nhập đoạn bôi đen vào flashcard…")).setIcon("download")
+        .onClick(() => void this.importSelectedText(file, selectedText)));
     }));
     this.addCommand({ id: "ai-from-selection", name: L("Generate flashcards from selected text", "Tạo flashcard từ đoạn văn đang chọn"), checkCallback: checking => {
       const file = this.app.workspace.getActiveFile();
       const editor = this.app.workspace.activeEditor?.editor;
-      if (!this.isEligibleSource(file) || !String(editor?.getSelection?.() || "").trim()) return false;
+      if (!this.isConfiguredSource(file) || !String(editor?.getSelection?.() || "").trim()) return false;
       if (!checking) new FlashcardSelectionAIModal(this.app, this, file, normalizeCardText(editor.getSelection())).open();
       return true;
     }});
@@ -167,8 +193,19 @@ class PDLFlashcardPlugin extends Plugin {
     return file.path !== output && !file.path.startsWith(output + "/");
   }
 
+  /** A source note must live in the configured source folders and not be excluded. */
+  isConfiguredSource(file) {
+    if (!this.isEligibleSource(file)) return false;
+    const path = normalizePath(file.path);
+    const include = (this.settings.sourceFolders || []).map(folder => normalizePath(folder)).filter(Boolean);
+    const exclude = [...(this.settings.excludedFolders || []), this.settings.outputFolder]
+      .map(folder => normalizePath(folder)).filter(Boolean);
+    if (exclude.some(folder => path === folder || path.startsWith(folder + "/"))) return false;
+    return !include.length || include.some(folder => path === folder || path.startsWith(folder + "/"));
+  }
+
   async openOrCreateForNote(file) {
-    if (!this.isEligibleSource(file)) { new Notice(L("Open a Markdown source note first.", "Hãy mở một note Markdown nguồn trước.")); return; }
+    if (!this.isConfiguredSource(file)) { new Notice(L("Open a configured Markdown source note first.", "Hãy mở một note nguồn Markdown đã cấu hình trước.")); return; }
     const cards = (await this.getCards()).filter(card => card.sourcePath === file.path);
     if (!cards.length) { new FlashcardStudioModal(this.app, this, file).open(); return; }
     await this.activateView();
@@ -179,6 +216,16 @@ class PDLFlashcardPlugin extends Plugin {
     if (!linkedCards.length) { new FlashcardStudioModal(this.app, this, file).open(); return; }
     view.startSession(linkedCards);
     new Notice(L(`Opened ${linkedCards.length} flashcards for ${file.basename}.`, `Đã mở ${linkedCards.length} flashcard cho ${file.basename}.`));
+  }
+
+  importSelectedText(file, text) {
+    if (!this.isConfiguredSource(file)) { new Notice(L("Open a configured Markdown source note first.", "Hãy mở một note nguồn Markdown đã cấu hình trước.")); return; }
+    new FlashcardExportImportModal(this.app, this, {
+      tab: "import",
+      text,
+      targetPath: file.path,
+      delimiter: "auto"
+    }).open();
   }
 
   onunload() { this.app.workspace.detachLeavesOfType(VIEW_TYPE); }

@@ -143,6 +143,12 @@ export function installDom() {
     clearTimeout: id => clearTimeout(id),
     speechSynthesis: {
       cancel() {},
+      getVoices() {
+        return [
+          { name: "Vietnamese Test", lang: "vi-VN", voiceURI: "vi-test" },
+          { name: "English Test", lang: "en-US", voiceURI: "en-test" }
+        ];
+      },
       speak(utterance) { spoken.push(utterance); }
     },
     // Cross-file state: other test files may reinstall the DOM, so tests read
@@ -151,7 +157,7 @@ export function installDom() {
   };
   globalThis.speechSynthesis = globalThis.window.speechSynthesis;
   globalThis.SpeechSynthesisUtterance = class SpeechSynthesisUtterance {
-    constructor(text) { this.text = text; this.lang = ""; }
+    constructor(text) { this.text = text; this.lang = ""; this.rate = 1; this.voice = null; }
   };
   globalThis.requestAnimationFrame = fn => setTimeout(fn, 0);
   return { spoken };
@@ -176,6 +182,7 @@ export function createVault(initial = {}) {
     files,
     folders,
     getMarkdownFiles: () => [...files.keys()].filter(p => p.endsWith(".md")).map(fileOf),
+    getFiles: () => [...files.keys()].map(fileOf),
     getAbstractFileByPath: p => (files.has(p) ? fileOf(p) : null),
     async cachedRead(file) { return files.get(file.path) ?? ""; },
     async read(file) { return files.get(file.path) ?? ""; },
@@ -185,6 +192,10 @@ export function createVault(initial = {}) {
     },
     async create(p, data) {
       if (files.has(p)) throw new Error(`File already exists: ${p}`);
+      files.set(p, data);
+      return fileOf(p);
+    },
+    async createBinary(p, data) {
       files.set(p, data);
       return fileOf(p);
     },

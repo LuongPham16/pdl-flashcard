@@ -5,10 +5,10 @@ import { setLanguage, L } from "./i18n.js";
 
 /* ─── Model lists per provider (fallback when API fetch fails) ─── */
 const KNOWN_MODELS = {
-  openai:   ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
-  gemini:   ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
-  deepseek: ["deepseek-chat", "deepseek-reasoner"],
-  claude:   ["claude-opus-4-5", "claude-sonnet-4-5", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
+  openai:   ["gpt-6-luna", "gpt-6.1-sol", "gpt-6-astra", "gpt-5.4-mini", "gpt-4.1-mini"],
+  gemini:   ["gemini-3.8-flash", "gemini-4-argon", "gemini-3.6-flash", "gemini-3.5-flash-lite"],
+  deepseek: ["deepseek-flash", "deepseek-v4-pro"],
+  claude:   ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5", "claude-fable-5-1"],
   custom:   [],
 };
 
@@ -50,7 +50,7 @@ async function fetchModels(provider, apiKey, endpoint) {
 /* ─── Test connection ─── */
 async function testConnection(provider, apiKey, endpoint, model) {
   if (!apiKey) throw new Error(L("API key is empty.", "API key trống."));
-  const testModel = model || (KNOWN_MODELS[provider]?.[0] ?? "gpt-4o-mini");
+  const testModel = model || (KNOWN_MODELS[provider]?.[0] ?? "gpt-6-luna");
 
   if (provider === "gemini") {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${apiKey}`;
@@ -152,9 +152,59 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
     new Setting(el).setName(L("Source folders", "Thư mục nguồn")).setDesc(L("Comma-separated. The plugin only reads Markdown source notes.", "Phân cách bằng dấy phẩy. Plugin chỉ đọc note Markdown nguồn.")).addTextArea(t => t
       .setValue(this.plugin.settings.sourceFolders.join(", "))
       .onChange(async v => { this.plugin.settings.sourceFolders = v.split(",").map(x => x.trim()).filter(Boolean); await this.plugin.saveData(this.plugin.settings); }));
-    new Setting(el).setName(L("Cards per session", "Số thẻ mỗi phiên")).setDesc(L("8–20 cards keeps a review session focused and manageable.", "8–20 thẻ giúp phiên ôn tập vừa sức và tập trung.")).addSlider(s => s
-      .setLimits(5, 30, 1).setDynamicTooltip().setValue(this.plugin.settings.sessionSize)
-      .onChange(async v => { this.plugin.settings.sessionSize = v; await this.plugin.saveData(this.plugin.settings); }));
+    el.createEl("h3", { text: L("Cards per flashcard type", "Số thẻ theo loại flashcard") });
+    el.createEl("p", { text: L("Default counts when you open the AI builder or the selection dialog.", "Số lượng mặc định khi mở AI builder hoặc dialog tạo từ đoạn bôi đen.") });
+    const countSetting = (name, description, key, fallback) => new Setting(el)
+      .setName(name)
+      .setDesc(description)
+      .addSlider(s => s.setLimits(0, 30, 1).setDynamicTooltip()
+        .setValue(Math.max(0, Number(this.plugin.settings[key] ?? fallback)))
+        .onChange(async v => { this.plugin.settings[key] = Math.max(0, Number(v) || 0); await this.plugin.saveData(this.plugin.settings); }));
+    countSetting(L("Q&A cards", "Thẻ hỏi đáp"), L("Default number of basic cards.", "Số thẻ hỏi đáp mặc định."), "defaultBasicCount", 4);
+    countSetting(L("Multiple-choice cards", "Thẻ trắc nghiệm"), L("Default number of MCQ cards.", "Số thẻ trắc nghiệm mặc định."), "defaultMcqCount", 3);
+    countSetting(L("Cloze cards", "Thẻ điền khuyết"), L("Default number of cloze cards.", "Số thẻ điền khuyết mặc định."), "defaultClozeCount", 3);
+    new Setting(el)
+      .setName(L("Create reverse cards by default", "Mặc định tạo thẻ 2 chiều"))
+      .setDesc(L("Start the AI builder with the reverse-card option enabled.", "Bật sẵn tùy chọn thẻ 2 chiều khi mở AI builder."))
+      .addToggle(t => t.setValue(this.plugin.settings.defaultReverseCards === true)
+        .onChange(async v => { this.plugin.settings.defaultReverseCards = v; await this.plugin.saveData(this.plugin.settings); }));
+
+    el.createEl("h3", { text: L("Read aloud (TTS)", "Đọc to (TTS)") });
+    const speech = "speechSynthesis" in window ? window.speechSynthesis : null;
+    const voices = speech && typeof speech.getVoices === "function" ? speech.getVoices() || [] : [];
+    new Setting(el)
+      .setName(L("Voice", "Giọng đọc"))
+      .setDesc(voices.length
+        ? L("Pick a system voice. Blank uses a voice that matches the card language.", "Chọn giọng hệ thống. Để trống sẽ dùng giọng khớp ngôn ngữ của thẻ.")
+        : L("No system voices were reported yet. Refresh after installing a speech pack in your OS.", "Chưa thấy giọng hệ thống. Bấm làm mới sau khi cài gói giọng nói trong hệ điều hành."))
+      .addDropdown(dropdown => {
+        dropdown.addOption("", L("Auto — match the card language", "Tự động — khớp ngôn ngữ của thẻ"));
+        const seen = new Set();
+        voices.forEach(voice => {
+          const value = voice.voiceURI || voice.name;
+          if (!value || seen.has(value)) return;
+          seen.add(value);
+          dropdown.addOption(value, `${voice.name} (${voice.lang || "?"})`);
+        });
+        const saved = this.plugin.settings.ttsVoice || "";
+        if (saved && !seen.has(saved)) dropdown.addOption(saved, `${saved} (${L("not installed", "chưa cài")})`);
+        dropdown.setValue(saved);
+        dropdown.onChange(async value => {
+          this.plugin.settings.ttsVoice = value;
+          await this.plugin.saveData(this.plugin.settings);
+        });
+      });
+    new Setting(el)
+      .setName(L("Reading speed", "Tốc độ đọc"))
+      .setDesc(L("0.5×–2×. Applies to the next Read aloud click.", "0.5×–2×. Áp dụng cho lần bấm Đọc to tiếp theo."))
+      .addSlider(slider => slider.setLimits(0.5, 2, 0.1).setDynamicTooltip()
+        .setValue(Math.max(0.5, Math.min(2, Number(this.plugin.settings.ttsRate) || 1)))
+        .onChange(async value => {
+          this.plugin.settings.ttsRate = Math.max(0.5, Math.min(2, Number(value) || 1));
+          await this.plugin.saveData(this.plugin.settings);
+        }))
+      .addButton(button => button.setButtonText(L("Refresh voices", "Làm mới giọng"))
+        .onClick(() => this.display()));
 
     el.createEl("h3", { text: L("Review behaviour", "Hành vi ôn tập") });
     new Setting(el)

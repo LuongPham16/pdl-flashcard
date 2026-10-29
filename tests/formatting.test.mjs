@@ -132,3 +132,54 @@ test("TTS button reads the prompt in Vietnamese and the answer after reveal", as
   view.containerEl.querySelectorAll(".pdl-tts-button")[0].onclick({ stopPropagation() {} });
   assert.equal(spoken.at(-1).text, "Câu hỏi tiếng Việt?. Câu trả lời");
 });
+
+test("TTS never speaks the hidden cloze answer before reveal", async () => {
+  const { view } = await makeView();
+  const spoken = window.__spoken;
+  spoken.length = 0;
+  const cloze = {
+    ...card,
+    type: "cloze",
+    question: "The {{c1::mitochondria}} is the powerhouse.",
+    answer: "mitochondria"
+  };
+  view.startSession([cloze]);
+  view.containerEl.querySelectorAll(".pdl-tts-button")[0].onclick({ stopPropagation() {} });
+  assert.equal(spoken.at(-1).text.includes("mitochondria"), false, "answer stays hidden");
+  assert.match(spoken.at(-1).text, /blank/);
+
+  view.reveal();
+  view.containerEl.querySelectorAll(".pdl-tts-button")[0].onclick({ stopPropagation() {} });
+  assert.match(spoken.at(-1).text, /mitochondria/);
+});
+
+test("TTS reads every MCQ choice and cleans Markdown when revealed", async () => {
+  const { view } = await makeView();
+  const spoken = window.__spoken;
+  spoken.length = 0;
+  const mcq = {
+    ...card,
+    type: "multiple-choice",
+    question: "Pick **one** [link](https://example.com) `code`",
+    answer: "Two",
+    choices: ["One", "Two", "Three", "Four"]
+  };
+  view.startSession([mcq]);
+  view.reveal();
+  view.containerEl.querySelectorAll(".pdl-tts-button")[0].onclick({ stopPropagation() {} });
+  const text = spoken.at(-1).text;
+  assert.match(text, /Pick one link code/);
+  assert.match(text, /A\. One/);
+  assert.match(text, /D\. Four/);
+  assert.match(text, /Correct answer: Two/);
+});
+
+test("TTS applies the selected voice and reading speed", async () => {
+  const { view } = await makeView({ ttsVoice: "vi-test", ttsRate: 1.6 });
+  const spoken = window.__spoken;
+  spoken.length = 0;
+  view.startSession([card]);
+  view.containerEl.querySelectorAll(".pdl-tts-button")[0].onclick({ stopPropagation() {} });
+  assert.equal(spoken.at(-1).voice?.name, "Vietnamese Test");
+  assert.equal(spoken.at(-1).rate, 1.6);
+});

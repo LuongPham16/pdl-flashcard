@@ -10,6 +10,8 @@ import {
 import { normalizeCardText, truncateLabel } from "../utils.js";
 import { DEFAULT_AI_PROMPTS } from "../constants.js";
 import { L } from "../i18n.js";
+import { ImagePickerModal, insertImageEmbed } from "./image-picker.js";
+import { FlashcardBatchModal } from "./batch.js";
 
 class FlashcardStudioModal extends Modal {
   constructor(app, plugin, sourceFile = null, options = {}) {
@@ -78,12 +80,9 @@ class FlashcardStudioModal extends Modal {
   }
 
   getSourceFiles() {
-    const include = this.plugin.settings.sourceFolders.filter(Boolean);
-    const exclude = [...this.plugin.settings.excludedFolders, this.plugin.settings.outputFolder].filter(Boolean);
-    return this.app.vault.getMarkdownFiles().filter(file =>
-      (!include.length || include.some(folder => file.path === folder || file.path.startsWith(folder + "/"))) &&
-      !exclude.some(folder => file.path === folder || file.path.startsWith(folder + "/"))
-    ).sort((a, b) => a.path.localeCompare(b.path, "vi"));
+    return this.app.vault.getMarkdownFiles()
+      .filter(file => this.plugin.isConfiguredSource(file))
+      .sort((a, b) => a.path.localeCompare(b.path, "vi"));
   }
 
   render() {
@@ -98,6 +97,10 @@ class FlashcardStudioModal extends Modal {
     draftTotal.createSpan({ text: this.cards.length === 1 ? "CARD\nIN DRAFT" : "CARDS\nIN DRAFT" });
 
     const sourceRow = root.createDiv({ cls: "pdl-studio-source" });
+    const batchRow = root.createDiv({ cls: "pdl-batch-row" });
+    const batchButton = batchRow.createEl("button", { cls: "pdl-batch-open", text: L("Create decks from a folder", "Tạo deck từ folder") });
+    setIcon(batchButton.createSpan(), "folder-tree");
+    batchButton.onclick = () => new FlashcardBatchModal(this.app, this.plugin).open();
     const sourceLabel = sourceRow.createDiv({ cls: "pdl-studio-source-label" });
     const sourceIcon = sourceLabel.createSpan(); setIcon(sourceIcon, "file-text");
     const sourceCopy = sourceLabel.createDiv(); sourceCopy.createEl("strong", { text: L("Source note", "Note nguồn") }); sourceCopy.createSpan({ text: L("The original note stays unchanged", "Note gốc không bị thay đổi") });
@@ -256,9 +259,15 @@ class FlashcardStudioModal extends Modal {
     const aiText = aiCopy.createDiv();
     aiText.createEl("strong", { text: L("Generate an AI draft", "Tạo bản nháp bằng AI") });
     aiText.createEl("p", { text: this.selectedText ? L("AI reads only the highlighted passage, not the whole note.", "AI chỉ đọc đoạn được bôi đen, không đọc toàn bộ note.") : L("AI reads only the selected note. You remain in control of every card.", "AI chỉ đọc note đã chọn. Bạn vẫn kiểm soát từng thẻ.") });
+    aiText.createEl("p", { cls: "pdl-ai-tag-rule", text: L("Tags: AI may reuse existing tags only; new tags are ignored.", "Tags: AI chỉ được dùng lại tag đã có; tag mới sẽ bị bỏ qua.") });
 
     const counts = ai.createDiv({ cls: "pdl-ai-counts" });
-    const countDefaults = this.initialCounts || { basic: 4, mcq: 3, cloze: 3 };
+    const settings = this.plugin.settings;
+    const countDefaults = this.initialCounts || {
+      basic: Number(settings.defaultBasicCount ?? 4),
+      mcq: Number(settings.defaultMcqCount ?? 3),
+      cloze: Number(settings.defaultClozeCount ?? 3)
+    };
 
     counts.createEl("label", { text: L("Q&A", "Hỏi đáp") });
     const basicCount = counts.createEl("input", { attr: { type: "number", min: "0", max: "30", value: String(countDefaults.basic ?? 4) } });
@@ -280,9 +289,10 @@ class FlashcardStudioModal extends Modal {
       await this.plugin.saveData(this.plugin.settings);
     };
 
-    const reverseCheck = counts.createEl("input", { attr: { type: "checkbox", title: L("Create reverse cards", "Tạo thẻ 2 chiều") } });
-    const reverseLabel = counts.createEl("label", { text: L("Create reverse cards", "Tạo thẻ 2 chiều"), attr: { style: "cursor: pointer;" } });
-    reverseLabel.onclick = () => { reverseCheck.checked = !reverseCheck.checked; };
+    const reverseToggle = counts.createEl("label", { cls: "pdl-reverse-toggle", attr: { title: L("Create reverse cards", "Tạo thẻ 2 chiều") } });
+    const reverseCheck = reverseToggle.createEl("input", { attr: { type: "checkbox" } });
+    reverseCheck.checked = this.plugin.settings.defaultReverseCards === true;
+    reverseToggle.createSpan({ text: L("Create reverse cards", "Tạo thẻ 2 chiều") });
 
     const generate = counts.createEl("button", { cls: "mod-cta", text: L("Generate with AI", "Tạo bằng AI") });
     this.runAIGeneration = options => this.generateDraft(options);
@@ -449,7 +459,7 @@ class FlashcardStudioModal extends Modal {
     this.addTextarea(box, L("Tags (comma separated, e.g. devops, eng)", "Tags (phân cách bằng dấu phẩy, ví dụ devops, eng)"), (card.tags || []).join(", "), value => {
       card.tags = value.split(",").map(t => t.trim()).filter(Boolean);
       updatePreview();
-    }, true);
+    }, true, false);
     this.addTextarea(box, L("Explanation (optional)", "Giải thích (không bắt buộc)"), card.explanation || "", value => { card.explanation = value; updatePreview(); }, true);
 
     updatePreview();
@@ -504,9 +514,28 @@ class FlashcardStudioModal extends Modal {
     wireCodeToggles(preview);
   }
 
-  addTextarea(parent, labelText, value, onChange, compact = false) {
-    const label = parent.createEl("label", { cls: "pdl-editor-field" }); label.createSpan({ text: labelText });
-    const field = label.createEl("textarea", { cls: compact ? "is-compact" : "" }); field.value = value || ""; field.oninput = () => onChange(field.value);
+  addTextarea(parent, labelText, value, onChange, compact = false, allowImage = true) {
+    const label = parent.createEl("label", { cls: "pdl-editor-field" });
+    const head = label.createDiv({ cls: "pdl-field-head" });
+    head.createSpan({ text: labelText });
+    if (allowImage) {
+      const insert = head.createEl("button", {
+        cls: "pdl-insert-image",
+        text: L("Image", "Ảnh"),
+        attr: { type: "button", title: L("Insert an image into this field", "Chèn ảnh vào ô này") }
+      });
+      insert.onclick = event => {
+        event.preventDefault();
+        event.stopPropagation();
+        new ImagePickerModal(this.app, this.plugin, path => {
+          insertImageEmbed(field, path);
+          onChange(field.value);
+        }).open();
+      };
+    }
+    const field = label.createEl("textarea", { cls: compact ? "is-compact" : "" });
+    field.value = value || "";
+    field.oninput = () => onChange(field.value);
   }
 }
 

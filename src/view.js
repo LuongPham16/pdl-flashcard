@@ -251,7 +251,74 @@ export class PDLFlashcardView extends ItemView {
     const active = days.filter(day=>day.count>0).length;
     const section = root.createDiv({ cls:"pdl-dashboard-heatmap" });
     const head = section.createDiv({ cls:"pdl-heatmap-head" }); const copy=head.createDiv(); copy.createEl("h3",{text:L("Review Consistency", "Mức độ đều đặn")}); copy.createEl("p",{text:L(`${formatCount(total)} reviews across ${active} active days · last 26 weeks`, `${formatCount(total)} lượt ôn trong ${active} ngày · 26 tuần qua`)});
-    const legend=head.createDiv({cls:"pdl-heatmap-legend",attr:{"aria-label":L("Activity intensity legend", "Chú giải mức độ hoạt động")}}); legend.createSpan({text:L("Less", "Ít")}); [0,1,2,3,4].forEach(level=>legend.createSpan({cls:`pdl-heatmap-swatch level-${level}`})); legend.createSpan({text:L("More", "Nhiều")});
+    const palettes = ["blue", "green", "orange", "purple"];
+    const paletteNames = {
+      blue: L("Blue", "Xanh dương"),
+      green: L("Green", "Xanh lá"),
+      orange: L("Orange", "Cam"),
+      purple: L("Purple", "Tím")
+    };
+    let palette = palettes.includes(this.plugin.settings.heatmapPalette) ? this.plugin.settings.heatmapPalette : "blue";
+    section.addClass(`pdl-heatmap-palette-${palette}`);
+    const legend=head.createDiv({cls:"pdl-heatmap-legend",attr:{"aria-label":L("Activity intensity legend", "Chú giải mức độ hoạt động"), role:"button", tabindex:"0"}});
+    legend.createSpan({text:L("Less", "Ít")}); [0,1,2,3,4].forEach(level=>legend.createSpan({cls:`pdl-heatmap-swatch level-${level}`})); legend.createSpan({text:L("More", "Nhiều")});
+    const shapes = ["square", "rounded", "circle", "diamond", "hexagon"];
+    const shapeNames = {
+      square: L("Square", "Vuông"),
+      rounded: L("Rounded", "Bo góc"),
+      circle: L("Circle", "Tròn"),
+      diamond: L("Diamond", "Kim cương"),
+      hexagon: L("Hexagon", "Lục giác")
+    };
+    let shape = shapes.includes(this.plugin.settings.heatmapShape) ? this.plugin.settings.heatmapShape : "square";
+    section.addClass(`pdl-heatmap-shape-${shape}`);
+    const shapeToggle = legend.createSpan({ cls: "pdl-heatmap-shape-toggle", attr: { role: "button", tabindex: "0" } });
+    const shapePreview = shapeToggle.createSpan({ cls: `pdl-heatmap-shape-preview is-${shape}` });
+    const syncLegend = () => {
+      const title = L(`Heatmap color: ${paletteNames[palette]}. Click to change.`, `Màu heatmap: ${paletteNames[palette]}. Bấm để đổi.`);
+      legend.setAttr("title", title);
+      legend.setAttr("aria-label", title);
+      const shapeTitle = L(`Heatmap cell shape: ${shapeNames[shape]}. Click to change.`, `Hình ô heatmap: ${shapeNames[shape]}. Bấm để đổi.`);
+      shapeToggle.setAttr("title", shapeTitle);
+      shapeToggle.setAttr("aria-label", shapeTitle);
+    };
+    syncLegend();
+    const cyclePalette = async () => {
+      section.removeClass(`pdl-heatmap-palette-${palette}`);
+      palette = palettes[(palettes.indexOf(palette) + 1) % palettes.length];
+      section.addClass(`pdl-heatmap-palette-${palette}`);
+      this.plugin.settings.heatmapPalette = palette;
+      syncLegend();
+      await this.plugin.saveData(this.plugin.settings);
+    };
+    const cycleShape = async () => {
+      section.removeClass(`pdl-heatmap-shape-${shape}`);
+      shapePreview.removeClass(`is-${shape}`);
+      shape = shapes[(shapes.indexOf(shape) + 1) % shapes.length];
+      section.addClass(`pdl-heatmap-shape-${shape}`);
+      shapePreview.addClass(`is-${shape}`);
+      this.plugin.settings.heatmapShape = shape;
+      syncLegend();
+      await this.plugin.saveData(this.plugin.settings);
+    };
+    legend.onclick = () => cyclePalette();
+    legend.onkeydown = event => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        void cyclePalette();
+      }
+    };
+    shapeToggle.onclick = event => {
+      event.stopPropagation();
+      return cycleShape();
+    };
+    shapeToggle.onkeydown = event => {
+      event.stopPropagation();
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        return cycleShape();
+      }
+    };
     const body=section.createDiv({cls:"pdl-heatmap-body"}); const labels=body.createDiv({cls:"pdl-heatmap-weekdays"});
     const weekdayLabels = Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(locale(), { weekday: "short" }).format(new Date(2024, 0, 7 + index)));
     weekdayLabels.forEach((label,index)=>labels.createSpan({text:index%2?label:""}));
@@ -293,10 +360,36 @@ export class PDLFlashcardView extends ItemView {
       empty.createEl("p", { text: L("Choose “Create deck” to write cards manually or generate a draft with AI.", "Chọn “Tạo deck” để tự viết thẻ hoặc tạo bản nháp bằng AI.") });
     } else if (pageCount > 1) {
       const pager = list.createDiv({ cls: "pdl-deck-pager" });
-      const summary = pager.createSpan({ text: L(`${formatCount(entries.length)} decks · Page ${this.deckPage + 1} of ${pageCount}`, `${formatCount(entries.length)} deck · Trang ${this.deckPage + 1}/${pageCount}`) });
-      const controls = pager.createDiv();
-      const previous = controls.createEl("button", { text: L("Previous", "Trước") }); previous.disabled = this.deckPage === 0; previous.onclick = () => { this.deckPage--; this.renderRows(list); };
-      const next = controls.createEl("button", { text: L("Next", "Sau") }); next.disabled = this.deckPage >= pageCount - 1; next.onclick = () => { this.deckPage++; this.renderRows(list); };
+      const summary = pager.createSpan({ text: L(`${formatCount(entries.length)} decks · ${pageSize} per page`, `${formatCount(entries.length)} deck · ${pageSize} mỗi trang`) });
+      const controls = pager.createDiv({ cls: "pdl-pager-controls" });
+      const goTo = value => {
+        const page = Math.max(1, Math.min(pageCount, Math.floor(Number(value) || 1)));
+        this.deckPage = page - 1;
+        this.renderRows(list);
+      };
+      const addStep = (text, label, disabled, target) => {
+        const button = controls.createEl("button", { cls: "pdl-pager-step", text, attr: { "aria-label": label, title: label } });
+        button.disabled = disabled;
+        button.onclick = () => goTo(target);
+        return button;
+      };
+      addStep("«", L("First page", "Trang đầu"), this.deckPage === 0, 1);
+      addStep("‹", L("Previous page", "Trang trước"), this.deckPage === 0, this.deckPage);
+      controls.createSpan({ cls: "pdl-page-label", text: L("Page", "Trang") });
+      const jump = controls.createEl("input", {
+        cls: "pdl-page-input",
+        attr: {
+          type: "number", min: "1", max: String(pageCount), value: String(this.deckPage + 1),
+          "aria-label": L("Go to page", "Đi đến trang")
+        }
+      });
+      jump.onchange = () => goTo(jump.value);
+      jump.onkeydown = event => {
+        if (event.key === "Enter") { event.preventDefault(); goTo(jump.value); }
+      };
+      controls.createSpan({ cls: "pdl-page-total", text: `/ ${pageCount}` });
+      addStep("›", L("Next page", "Trang sau"), this.deckPage >= pageCount - 1, this.deckPage + 2);
+      addStep("»", L("Last page", "Trang cuối"), this.deckPage >= pageCount - 1, pageCount);
     }
   }
 
@@ -378,8 +471,25 @@ export class PDLFlashcardView extends ItemView {
     setIcon(ttsBtn, "volume-2");
     ttsBtn.onclick = (e) => {
       e.stopPropagation();
-      const speakContent = (card.type === "cloze" && this.revealed) ? parseCloze(card.question).answers.join(", ") : (this.revealed ? `${card.question}. ${card.answer}` : card.question);
-      speakText(speakContent);
+      let speakContent;
+      if (card.type === "cloze") {
+        const cloze = parseCloze(card.question);
+        // Never speak the hidden answer before reveal: use the masked statement.
+        speakContent = this.revealed
+          ? cloze.fullAnswer
+          : cloze.hiddenPrompt.replace(/\[[^\]]*\]/g, ` ${L("blank", "chỗ trống")} `);
+      } else if (card.type === "multiple-choice" && this.revealed) {
+        const choices = (card.choices || []).filter(Boolean)
+          .map((choice, index) => `${String.fromCharCode(65 + index)}. ${choice}`)
+          .join(". ");
+        speakContent = `${card.question}. ${L("Choices", "Các lựa chọn")}: ${choices}. ${L("Correct answer", "Đáp án đúng")}: ${card.answer}`;
+      } else {
+        speakContent = this.revealed ? `${card.question}. ${card.answer}` : card.question;
+      }
+      speakText(speakContent, {
+        voice: this.plugin.settings.ttsVoice,
+        rate: this.plugin.settings.ttsRate
+      });
     };
 
     // Suspend / bury act on the card and immediately move the session on to the next one.
@@ -439,6 +549,8 @@ export class PDLFlashcardView extends ItemView {
       const answer = qBox.createDiv({ cls: "pdl-answer markdown-rendered" });
       if (card.type === "multiple-choice") {
         this.renderChoices(answer, card);
+      } else if (card.type === "cloze" && !this.revealed) {
+        this.renderClozeInputs(answer, card);
       } else if (!this.revealed) {
         answer.addClass("is-freeform");
         answer.createEl("p", { cls: "pdl-prompt", text: L("Say it aloud, write it down, or reconstruct the answer in your mind.", "Hãy nói to, viết ra, hoặc tự dựng lại câu trả lời trong đầu.") });
@@ -503,6 +615,115 @@ export class PDLFlashcardView extends ItemView {
     this.revealed = true; 
     this.showQuestionMode = false;
     this.renderReview(); 
+  }
+
+  /**
+   * Cloze cards: type each missing term instead of only pressing "reveal".
+   * One input per deletion; Enter checks, all-correct reveals the answer.
+   */
+  renderClozeInputs(container, card) {
+    const answers = parseCloze(card.question).answers;
+    if (!answers.length) {
+      container.addClass("is-freeform");
+      container.createEl("p", { cls: "pdl-prompt", text: L("Type the missing word, then reveal the answer.", "Hãy nhập từ còn thiếu, rồi mở đáp án.") });
+      const reveal = container.createEl("button", { cls: "pdl-reveal", text: L("Reveal answer", "Hiện đáp án") });
+      reveal.onclick = () => this.reveal();
+      return;
+    }
+
+    container.addClass("pdl-cloze-answer");
+    container.createEl("p", { cls: "pdl-cloze-prompt", text: L("Type the missing word(s):", "Nhập từ còn thiếu:") });
+    const fields = container.createDiv({ cls: "pdl-cloze-fields" });
+    const inputs = answers.map((answer, index) => {
+      const field = fields.createDiv({ cls: "pdl-cloze-field" });
+      field.createSpan({ cls: "pdl-cloze-index", text: String(index + 1) });
+      const input = field.createEl("input", {
+        cls: "pdl-cloze-input",
+        attr: {
+          type: "text",
+          autocomplete: "off",
+          spellcheck: "false",
+          placeholder: L("Type the missing word…", "Nhập từ còn thiếu…"),
+          "aria-label": L(`Blank ${index + 1}`, `Chỗ trống ${index + 1}`)
+        }
+      });
+      input.oninput = () => {
+        input.removeClass("is-correct");
+        input.removeClass("is-wrong");
+      };
+      input.onkeydown = event => {
+        if (event.key === "Enter") { event.preventDefault(); check(); }
+      };
+      return input;
+    });
+
+    const hints = container.createDiv({ cls: "pdl-cloze-hints" });
+    hints.createSpan({ cls: "pdl-cloze-hints-label", text: L("Click a letter to reveal a hint:", "Bấm một chữ để mở gợi ý:") });
+    answers.forEach((answer, answerIndex) => {
+      const row = hints.createDiv({ cls: "pdl-cloze-hint-row" });
+      if (answers.length > 1) row.createSpan({ cls: "pdl-cloze-hint-index", text: String(answerIndex + 1) });
+      const letters = row.createDiv({ cls: "pdl-cloze-letters" });
+      Array.from(answer.normalize("NFC")).forEach((character, characterIndex) => {
+        if (/\s/.test(character)) { letters.createSpan({ cls: "pdl-cloze-hint-space" }); return; }
+        if (!/[\p{L}\p{N}]/u.test(character)) { letters.createSpan({ cls: "pdl-cloze-hint-punct", text: character }); return; }
+        const tile = letters.createSpan({
+          cls: "pdl-cloze-hint-letter",
+          text: "•",
+          attr: {
+            role: "button",
+            tabindex: "0",
+            title: L("Click to reveal this letter", "Bấm để mở chữ này"),
+            "aria-label": L(`Reveal letter ${characterIndex + 1} of blank ${answerIndex + 1}`, `Mở chữ ${characterIndex + 1} của chỗ trống ${answerIndex + 1}`)
+          }
+        });
+        const reveal = () => {
+          tile.setText(character);
+          tile.addClass("is-revealed");
+          tile.setAttr("aria-label", character);
+        };
+        tile.onclick = reveal;
+        tile.onkeydown = event => {
+          if (event.key === "Enter" || event.key === " ") { event.preventDefault(); reveal(); }
+        };
+      });
+    });
+
+    const feedback = container.createDiv({ cls: "pdl-cloze-feedback" });
+    const normalize = value => String(value ?? "").normalize("NFC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+    const check = () => {
+      const values = inputs.map(input => input.value);
+      if (values.some(value => !value.trim())) {
+        feedback.setText(L("Fill every blank first.", "Hãy điền đủ các chỗ trống."));
+        feedback.removeClass("is-correct");
+        feedback.addClass("is-wrong");
+        return;
+      }
+      let allRight = true;
+      inputs.forEach((input, index) => {
+        const right = normalize(values[index]) === normalize(answers[index]);
+        input.toggleClass("is-correct", right);
+        input.toggleClass("is-wrong", !right);
+        if (!right) allRight = false;
+      });
+      if (allRight) {
+        feedback.setText(L("Correct!", "Chính xác!"));
+        feedback.addClass("is-correct");
+        feedback.removeClass("is-wrong");
+        this.reveal();
+      } else {
+        feedback.setText(L("Not quite — try again.", "Chưa đúng — thử lại."));
+        feedback.addClass("is-wrong");
+        feedback.removeClass("is-correct");
+        inputs.find((_, index) => normalize(inputs[index].value) !== normalize(answers[index]))?.focus();
+      }
+    };
+
+    const actions = container.createDiv({ cls: "pdl-cloze-actions" });
+    const checkButton = actions.createEl("button", { cls: "pdl-reveal", text: L("Check answer", "Kiểm tra") });
+    checkButton.onclick = check;
+    const revealButton = actions.createEl("button", { cls: "pdl-cloze-reveal", text: L("Reveal answer", "Hiện đáp án") });
+    revealButton.onclick = () => this.reveal();
+    inputs[0]?.focus?.();
   }
 
   renderChoices(container, card) {

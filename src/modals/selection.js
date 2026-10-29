@@ -21,7 +21,11 @@ class FlashcardSelectionAIModal extends Modal {
     this.selectedText = String(selectedText || "").trim();
     this.targetDeckFile = null;
     this.deckChecked = false;
-    this.counts = { basic: 3, mcq: 2, cloze: 2 };
+    this.counts = {
+      basic: Number(plugin.settings.defaultBasicCount ?? 3),
+      mcq: Number(plugin.settings.defaultMcqCount ?? 2),
+      cloze: Number(plugin.settings.defaultClozeCount ?? 2)
+    };
   }
 
   onOpen() {

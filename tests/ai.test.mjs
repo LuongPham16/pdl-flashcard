@@ -127,6 +127,7 @@ test("fenced JSON is cleaned, malformed content rejected and non-array cards ign
 
 test("generated Vietnamese is normalized to NFC before it reaches a deck", async () => {
   const plugin = makeAI();
+  plugin.getCards = async () => [{ tags: ["nguồn"] }];
   const nfd = "nguồn".normalize("NFD");
   replyWith(JSON.stringify({ cards: [{ question: `scp <${nfd}> <đích>`, answer: `Từ ${nfd}`, explanation: nfd, tags: [nfd], choices: [nfd, "B", "C", "D"] }] }));
   const cards = await plugin.requestAICards("body", { basic: 1 }, "preset");
@@ -136,6 +137,27 @@ test("generated Vietnamese is normalized to NFC before it reaches a deck", async
   assert.deepEqual(cards[0].tags, ["nguồn"]);
   assert.equal(cards[0].choices[0], "nguồn");
   assert.doesNotMatch(cards[0].question, /\p{M}/u);
+});
+
+test("AI may only reuse tags the user already created", async () => {
+  const plugin = makeAI();
+  plugin.getCards = async () => [{ tags: ["devops", "Kubernetes"] }];
+  replyWith('{"cards":[{"question":"Q","answer":"A","tags":["devops","new-tag","KUBERNETES","#other",""]}]}');
+  const cards = await plugin.requestAICards("body", { basic: 1 }, "preset");
+  assert.deepEqual(cards[0].tags, ["devops", "Kubernetes"], "new tags are dropped and casing follows the user's tag");
+  const prompt = JSON.parse(network.calls.at(-1).body).messages[1].content;
+  assert.match(prompt, /ALLOWED TAGS/);
+  assert.match(prompt, /devops/);
+  assert.match(prompt, /Kubernetes/);
+});
+
+test("AI returns no tags when the user has no existing tags", async () => {
+  const plugin = makeAI();
+  plugin.getCards = async () => [];
+  replyWith('{"cards":[{"question":"Q","answer":"A","tags":["invented"]}]}');
+  const cards = await plugin.requestAICards("body", { basic: 1 }, "preset");
+  assert.deepEqual(cards[0].tags, []);
+  assert.match(JSON.parse(network.calls.at(-1).body).messages[1].content, /ALLOWED TAGS: none/);
 });
 
 test("an empty provider response is an error", async () => {

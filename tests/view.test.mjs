@@ -92,6 +92,23 @@ test("dashboard heatmap renders 26 weeks of cells", async () => {
   assert.equal(view.containerEl.querySelectorAll(".pdl-heatmap-cell").length, 182);
 });
 
+test("clicking the heatmap legend cycles and persists the palette", async () => {
+  const { app, plugin, view } = await makeView();
+  seedDeck(app, "06 - Flashcards/deck.md", [{ id: "a", question: "Q", answer: "A" }]);
+  await view.refresh();
+  const legend = view.containerEl.querySelector(".pdl-heatmap-legend");
+  assert.ok(legend, "clickable legend rendered");
+  await legend.onclick();
+  assert.equal(plugin.settings.heatmapPalette, "green");
+  assert.equal(view.containerEl.querySelector(".pdl-dashboard-heatmap").classList.contains("pdl-heatmap-palette-green"), true);
+
+  const shape = view.containerEl.querySelector(".pdl-heatmap-shape-toggle");
+  await shape.onclick({ stopPropagation() {} });
+  assert.equal(plugin.settings.heatmapShape, "rounded");
+  assert.equal(view.containerEl.querySelector(".pdl-dashboard-heatmap").classList.contains("pdl-heatmap-shape-rounded"), true);
+  assert.equal(plugin.settings.heatmapPalette, "green", "shape click does not change color");
+});
+
 test("getStats counts due, mature, suspended and the day streak", async () => {
   const { plugin, view } = await makeView();
   const cards = ["a", "b", "c", "d"].map(id => cardObj(id));
@@ -344,6 +361,32 @@ test("a multiple-choice answer keeps its status banner and answer heading", asyn
   assert.equal(rows[1].querySelector(".pdl-mcq-value").classList.contains("is-correct"), true);
 });
 
+test("cloze cards let the user type the missing word and check it", async () => {
+  const { view } = await makeView();
+  view.session = [cardObj("cloze", { type: "cloze", question: "The {{c1::mitochondria}} is the powerhouse", answer: "mitochondria" })];
+  view.index = 0;
+  view.revealed = false;
+  view.undoStack = [];
+  view.renderReview();
+
+  const input = view.containerEl.querySelector(".pdl-cloze-input");
+  assert.ok(input, "cloze input rendered");
+  const hint = view.containerEl.querySelectorAll(".pdl-cloze-hint-letter")[0];
+  assert.ok(hint, "clickable letter hint rendered");
+  assert.equal(textOf(hint), "•");
+  hint.onclick();
+  assert.equal(textOf(hint), "m");
+  assert.equal(hint.classList.contains("is-revealed"), true);
+  input.value = "nucleus";
+  view.containerEl.querySelector(".pdl-cloze-actions .pdl-reveal").onclick();
+  assert.equal(view.revealed, false, "wrong answer does not reveal");
+  assert.equal(input.classList.contains("is-wrong"), true);
+
+  input.value = "mitochondria";
+  view.containerEl.querySelector(".pdl-cloze-actions .pdl-reveal").onclick();
+  assert.equal(view.revealed, true, "correct answer reveals the card");
+});
+
 test("the review source button uses a short label and keeps the full name in the tooltip", async () => {
   const { view } = await makeView();
   const noteName = "Git Pull Requests, Rebase And Merge Strategy Notes";
@@ -399,7 +442,12 @@ test("decksPerPage controls how many decks the library shows", async () => {
   }
   const ten = await makeView({ decksPerPage: 10 }, files);
   assert.equal(ten.view.containerEl.querySelectorAll(".pdl-topic-row").length, 10);
-  assert.match(textOf(ten.view.containerEl), /Page 1 of 2/);
+  const jump = ten.view.containerEl.querySelector(".pdl-page-input");
+  assert.equal(jump.value, "1");
+  jump.value = "2";
+  jump.onchange();
+  assert.equal(ten.view.deckPage, 1);
+  assert.equal(ten.view.containerEl.querySelectorAll(".pdl-topic-row").length, 2, "jump goes straight to the last page");
 
   const five = await makeView({}, files);
   assert.equal(five.view.containerEl.querySelectorAll(".pdl-topic-row").length, 5, "default stays 5");

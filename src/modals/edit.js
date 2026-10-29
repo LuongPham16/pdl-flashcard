@@ -9,6 +9,7 @@ import {
 } from "../formatting.js";
 import { normalizeCardText } from "../utils.js";
 import { L } from "../i18n.js";
+import { ImagePickerModal, insertImageEmbed } from "./image-picker.js";
 
 class FlashcardEditModal extends Modal {
   constructor(app, plugin, card, onSaved) {
@@ -25,15 +26,35 @@ class FlashcardEditModal extends Modal {
       tags: (card.tags || []).join(", ")
     };
     while (this.values.choices.length < 4) this.values.choices.push("");
+    this.inputs = {};
   }
 
   onOpen() { this.modalEl.addClass("pdl-edit-modal"); this.render(); }
-  field(root, labelText, key, compact = false) {
+
+  insertImage(key) {
+    new ImagePickerModal(this.app, this.plugin, path => {
+      const input = this.inputs[key];
+      insertImageEmbed(input, path);
+      this.values[key] = input?.value || this.values[key];
+    }).open();
+  }
+
+  field(root, labelText, key, compact = false, allowImage = true) {
     const label = root.createEl("label", { cls: "pdl-editor-field" });
-    label.createSpan({ text: labelText });
+    const head = label.createDiv({ cls: "pdl-field-head" });
+    head.createSpan({ text: labelText });
+    if (allowImage) {
+      const insert = head.createEl("button", {
+        cls: "pdl-insert-image",
+        text: L("Image", "Ảnh"),
+        attr: { type: "button", title: L("Insert an image into this field", "Chèn ảnh vào ô này") }
+      });
+      insert.onclick = event => { event.preventDefault(); event.stopPropagation(); this.insertImage(key); };
+    }
     const input = label.createEl("textarea", { cls: compact ? "is-compact" : "" });
     input.value = this.values[key] || "";
     input.oninput = () => this.values[key] = input.value;
+    this.inputs[key] = input;
   }
 
   render() {
@@ -60,7 +81,7 @@ class FlashcardEditModal extends Modal {
     if (this.values.type !== "cloze") {
       this.field(root, this.values.type === "multiple-choice" ? L("Correct answer", "Đáp án đúng") : L("Answer", "Đáp án"), "answer");
     }
-    this.field(root, L("Tags (comma separated, e.g. devops, eng)", "Tags (phân cách bằng dấu phẩy, ví dụ devops, eng)"), "tags", true);
+    this.field(root, L("Tags (comma separated, e.g. devops, eng)", "Tags (phân cách bằng dấu phẩy, ví dụ devops, eng)"), "tags", true, false);
     this.field(root, L("Explanation (optional)", "Giải thích (không bắt buộc)"), "explanation", true);
 
     const footer = root.createDiv({ cls: "pdl-edit-footer" }); const cancel = footer.createEl("button", { text: L("Cancel", "Hủy") }); cancel.onclick=()=>this.close(); const save=footer.createEl("button", { cls:"mod-cta", text:L("Save changes", "Lưu thay đổi") });
