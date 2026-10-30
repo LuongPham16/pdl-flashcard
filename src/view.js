@@ -1,6 +1,6 @@
 /** The review dashboard: library, review session, heatmap and summary. */
 import { ItemView, Notice, setIcon, MarkdownRenderer } from "obsidian";
-import { VIEW_TYPE, DAY } from "./constants.js";
+import { VIEW_TYPE } from "./constants.js";
 import { dateKey, formatCount, nfcText, truncateLabel } from "./utils.js";
 import { L, locale } from "./i18n.js";
 import {
@@ -360,7 +360,7 @@ export class PDLFlashcardView extends ItemView {
       empty.createEl("p", { text: L("Choose “Create deck” to write cards manually or generate a draft with AI.", "Chọn “Tạo deck” để tự viết thẻ hoặc tạo bản nháp bằng AI.") });
     } else if (pageCount > 1) {
       const pager = list.createDiv({ cls: "pdl-deck-pager" });
-      const summary = pager.createSpan({ text: L(`${formatCount(entries.length)} decks · ${pageSize} per page`, `${formatCount(entries.length)} deck · ${pageSize} mỗi trang`) });
+      pager.createSpan({ text: L(`${formatCount(entries.length)} decks · ${pageSize} per page`, `${formatCount(entries.length)} deck · ${pageSize} mỗi trang`) });
       const controls = pager.createDiv({ cls: "pdl-pager-controls" });
       const goTo = value => {
         const page = Math.max(1, Math.min(pageCount, Math.floor(Number(value) || 1)));

@@ -865,9 +865,6 @@
 .pdl-flashcard .pdl-section-body p:last-child {
   margin-bottom: 0;
 }
-.pdl-flashcard .pdl-section-body p:has(.pdl-code) {
-  margin: 0;
-}
 .pdl-flashcard .pdl-cloze-target {
   background: var(--yellow);
   padding: 2px 7px;

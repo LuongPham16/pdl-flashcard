@@ -224,7 +224,7 @@ class FlashcardExportImportModal extends Modal {
     a.download = filename;
     document.body.appendChild(a);
     a.click();
-    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+    window.setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
   }
 }
 

@@ -141,6 +141,7 @@ export function installDom() {
   globalThis.window = {
     setTimeout: (fn, ms) => setTimeout(fn, ms),
     clearTimeout: id => clearTimeout(id),
+    requestAnimationFrame: fn => setTimeout(fn, 0),
     speechSynthesis: {
       cancel() {},
       getVoices() {

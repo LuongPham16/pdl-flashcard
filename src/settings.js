@@ -1,5 +1,5 @@
 /** Settings UI – tabbed: General | AI */
-import { PluginSettingTab, Setting, Notice, normalizePath } from "obsidian";
+import { PluginSettingTab, Setting, Notice, normalizePath, requestUrl } from "obsidian";
 import { DEFAULT_AI_PROMPTS } from "./constants.js";
 import { setLanguage, L } from "./i18n.js";
 
@@ -12,6 +12,16 @@ const KNOWN_MODELS = {
   custom:   [],
 };
 
+/** Use Obsidian's requestUrl so settings requests follow the same CORS rules as AI calls. */
+async function requestJson(url, options = {}) {
+  const response = await requestUrl({ url, ...options, throw: false });
+  if (response.status >= 400) {
+    const detail = response.json?.error?.message || response.json?.error || response.text || `HTTP ${response.status}`;
+    throw new Error(String(detail).slice(0, 400));
+  }
+  return response.json || {};
+}
+
 /* ─── Fetch available models from provider API ─── */
 async function fetchModels(provider, apiKey, endpoint) {
   try {
@@ -22,18 +32,15 @@ async function fetchModels(provider, apiKey, endpoint) {
           ? "https://api.deepseek.com"
           : "https://api.openai.com/v1";
       const url = base.replace(/\/$/, "") + "/models";
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
+      const json = await requestJson(url, { headers: { Authorization: `Bearer ${apiKey}` } });
       const ids = (json.data || []).map(m => m.id).filter(Boolean).sort();
       return ids.length ? ids : KNOWN_MODELS[provider] || [];
     }
     if (provider === "gemini") {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+      const json = await requestJson(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+        {}
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
       const ids = (json.models || [])
         .map(m => m.name?.replace("models/", ""))
         .filter(id => id && id.startsWith("gemini"))
@@ -54,34 +61,31 @@ async function testConnection(provider, apiKey, endpoint, model) {
 
   if (provider === "gemini") {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
+    await requestJson(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }], generationConfig: { maxOutputTokens: 1 } }),
+      body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }], generationConfig: { maxOutputTokens: 1 } })
     });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message || `HTTP ${res.status}`); }
     return;
   }
   if (provider === "claude") {
     const url = endpoint || "https://api.anthropic.com/v1/messages";
-    const res = await fetch(url, {
+    await requestJson(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: testModel, max_tokens: 1, messages: [{ role: "user", content: "hi" }] }),
+      body: JSON.stringify({ model: testModel, max_tokens: 1, messages: [{ role: "user", content: "hi" }] })
     });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message || `HTTP ${res.status}`); }
     return;
   }
   // openai / deepseek / custom
   const url = endpoint || (provider === "deepseek"
     ? "https://api.deepseek.com/chat/completions"
     : "https://api.openai.com/v1/chat/completions");
-  const res = await fetch(url, {
+  await requestJson(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: testModel, max_tokens: 1, messages: [{ role: "user", content: "hi" }] }),
+    body: JSON.stringify({ model: testModel, max_tokens: 1, messages: [{ role: "user", content: "hi" }] })
   });
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message || `HTTP ${res.status}`); }
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
@@ -251,13 +255,11 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
 
     /* ── API Key + Test ── */
     el.createEl("h3", { text: L("Authentication", "Xác thực") });
-    let apiKeyInput = null;
     const keySetting = new Setting(el)
       .setName("API Key")
       .setDesc(L(`API key for ${providerLabel}.`, `API key cho ${providerLabel}.`));
 
     keySetting.addText(t => {
-      apiKeyInput = t;
       t.inputEl.type = "password";
       t.inputEl.style.cssText = "width:260px;font-family:monospace";
       t.setPlaceholder(provider === "gemini" ? "AIzaSy..." : "sk-...")
@@ -312,13 +314,11 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
       .setName(L("Model", "Model"))
       .setDesc(L("Choose the model to use for flashcard generation.", "Chọn model để tạo flashcard."));
 
-    let modelDropdown = null;
     const currentModel = ai.models?.[provider] || "";
 
     const buildModelDropdown = (models) => {
       modelRow.controlEl.empty();
       modelRow.addDropdown(d => {
-        modelDropdown = d;
         const set = new Set(models);
         if (currentModel && !set.has(currentModel)) d.addOption(currentModel, currentModel);
         models.forEach(m => d.addOption(m, m));

@@ -3,7 +3,7 @@
 **PDL Flashcard** giúp bạn tạo và ôn tập flashcard ngay trong Obsidian theo phương pháp
 lặp lại ngắt quãng. Plugin có thể nhờ AI đọc note để soạn thẻ nháp, hoặc bạn tự viết thẻ.
 
-> Phiên bản **1.0.1**. Giao diện hỗ trợ tiếng Anh và tiếng Việt.
+> Phiên bản **1.0.2**. Giao diện hỗ trợ tiếng Anh và tiếng Việt.
 
 ## 1. Cài đặt
 
@@ -40,7 +40,7 @@ Chỉ note trong **Source folders** mới xuất hiện ở các ô chọn note/
 ### Từ một note
 
 1. Mở note nguồn.
-2. Chạy **PDL Flashcard: Create flashcards from active note** hoặc `Mod + Alt + K`.
+2. Chạy **PDL Flashcard: Create flashcards from active note** (hoặc tự gán phím tắt trong *Settings → Hotkeys*).
 3. Trong **Flashcard Studio**:
    - chọn số thẻ Q&A / MCQ / Cloze;
    - chọn prompt;
@@ -173,7 +173,7 @@ Xuất CSV hoặc JSON theo toàn bộ thư viện hoặc từng deck.
 
 ## 10. Phím tắt và command chính
 
-- `Mod + Alt + K` — tạo flashcard cho note đang mở.
+- Tự gán phím tắt trong *Settings → Hotkeys* cho lệnh tạo flashcard.
 - `Ctrl/Cmd + Z` — hoàn tác lần đánh giá.
 - `Space` — hiện đáp án / thao tác chính trong phiên ôn.
 - Command Palette: gõ `PDL Flashcard` để xem toàn bộ lệnh.

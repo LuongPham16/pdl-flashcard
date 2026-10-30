@@ -118,7 +118,7 @@ class FlashcardStudioModal extends Modal {
     }
 
     const dropTrigger = dropWrapper.createDiv({ cls: 'pdl-source-picker__trigger' + (this.sourcePath ? ' is-hidden' : '') });
-    const dropTriggerText = dropTrigger.createSpan({ cls: 'pdl-source-picker__trigger-text', text: L('— Choose a note —', '— Chọn một note —') });
+    dropTrigger.createSpan({ cls: 'pdl-source-picker__trigger-text', text: L('— Choose a note —', '— Chọn một note —') });
     dropTrigger.createSpan({ cls: 'pdl-source-picker__trigger-icon', text: '▾' });
 
     const dropPanel = dropWrapper.createDiv({ cls: 'pdl-source-picker__panel' });
@@ -203,7 +203,7 @@ class FlashcardStudioModal extends Modal {
       dropPanel.style.display = 'flex';
       dropSearch.value = '';
       renderDropItems('');
-      requestAnimationFrame(() => dropSearch.focus());
+      window.requestAnimationFrame(() => dropSearch.focus());
     };
 
     const closePanel = () => {
@@ -231,8 +231,8 @@ class FlashcardStudioModal extends Modal {
     });
 
     dropSearch.addEventListener('input', () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => renderDropItems(dropSearch.value), 120);
+      window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(() => renderDropItems(dropSearch.value), 120);
     });
 
     dropSearch.addEventListener('keydown', (e) => {

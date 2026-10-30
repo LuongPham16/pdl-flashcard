@@ -4,8 +4,8 @@
 highlighted passage — into editable flashcard decks, then review them with adaptive
 spaced repetition.
 
-> **Version 1.0.1** · desktop and mobile · not yet submitted to the Obsidian community
-> plugin registry.
+> **Version 1.0.2** · desktop and mobile · submitted to the Obsidian community plugin
+> directory.
 
 ## Highlights
 
@@ -25,8 +25,9 @@ spaced repetition.
 2. Open **Settings → PDL Flashcard → AI**, choose a provider and paste an API key.
 3. Open **Settings → PDL Flashcard → General** and confirm **Source folders** and
    **Flashcard folder**.
-4. Open a note and run **PDL Flashcard: Create flashcards from active note**
-   (`Mod + Alt + K`), or use the brain icon in the ribbon.
+4. Open a note and run **PDL Flashcard: Create flashcards from active note**, or use
+   the brain icon in the ribbon. Assign your own hotkey in *Settings → Hotkeys* if
+   you want one.
 5. Draft or generate cards in **Flashcard Studio**, then save the deck.
 6. Open the dashboard and start **Quick Review**.
 
@@ -187,7 +188,7 @@ when you actually press **Import Cards**.
 - `PDL Flashcard: Custom study session`
 - `PDL Flashcard: Create flashcards from a note`
 - `PDL Flashcard: Create decks from a folder`
-- `PDL Flashcard: Create flashcards from active note` (`Mod + Alt + K`)
+- `PDL Flashcard: Create flashcards from active note`
 - `PDL Flashcard: Open or create flashcards for active note`
 - `PDL Flashcard: Generate flashcards from selected text`
 - `PDL Flashcard: Import or export flashcards`

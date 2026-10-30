@@ -113,7 +113,7 @@ class PDLFlashcardPlugin extends Plugin {
       if (!checking) new FlashcardStudioModal(this.app, this, file).open();
       return true;
     }});
-    this.addCommand({ id: "open-or-create-active-note", name: L("Open or create flashcards for active note", "Mở hoặc tạo flashcard cho note đang mở"), hotkeys: [{ modifiers: ["Mod", "Alt"], key: "k" }], checkCallback: checking => {
+    this.addCommand({ id: "open-or-create-active-note", name: L("Open or create flashcards for active note", "Mở hoặc tạo flashcard cho note đang mở"), checkCallback: checking => {
       const file = this.app.workspace.getActiveFile();
       if (!this.isConfiguredSource(file)) return false;
       if (!checking) void this.openOrCreateForNote(file);
@@ -227,8 +227,6 @@ class PDLFlashcardPlugin extends Plugin {
       delimiter: "auto"
     }).open();
   }
-
-  onunload() { this.app.workspace.detachLeavesOfType(VIEW_TYPE); }
 
   /** Apply `settings.language` to the module-level UI language. */
   applyLanguage() { setLanguage(this.settings.language); }
