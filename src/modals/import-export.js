@@ -125,7 +125,7 @@ class FlashcardExportImportModal extends Modal {
     nameInput.value = L("Imported Deck", "Deck đã nhập");
     const syncTarget = () => {
       const target = targetSelect.value;
-      nameLabel.style.display = target ? "none" : "";
+      nameLabel.toggleClass("is-hidden", Boolean(target));
       nameInput.disabled = Boolean(target);
       targetStatus.setText(target
         ? L(`Cards will be added to the deck of “${target}”.`, `Thẻ sẽ được thêm vào deck của “${target}”.`)

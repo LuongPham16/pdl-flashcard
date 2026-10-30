@@ -115,6 +115,7 @@ export class Setting {
 
   setName() { return this; }
   setDesc() { return this; }
+  setHeading() { return this; }
   addText(cb) { return this.control("text", cb); }
   addTextArea(cb) { return this.control("textarea", cb); }
   addButton(cb) { return this.control("button", cb); }
@@ -129,6 +130,10 @@ export class Notice {
 }
 
 /** Records every call so tests can assert on the Markdown passed in. */
+export function sanitizeHTMLToDom(html) {
+  return { __html: String(html) };
+}
+
 export const MarkdownRenderer = {
   async render(app, markdown, el, sourcePath) {
     renderedCalls.push({ markdown, sourcePath });

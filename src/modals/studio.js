@@ -1,12 +1,6 @@
 /** Flashcard Studio: manual drafting and AI generation. */
 import { Modal, Notice, setIcon, MarkdownRenderer } from "obsidian";
-import {
-  parseCloze,
-  formatRichInline,
-  formatRichText,
-  formatRichCodeAware,
-  wireCodeToggles
-} from "../formatting.js";
+import { parseCloze, wireCodeToggles } from "../formatting.js";
 import { normalizeCardText, truncateLabel } from "../utils.js";
 import { DEFAULT_AI_PROMPTS } from "../constants.js";
 import { L } from "../i18n.js";
@@ -122,7 +116,6 @@ class FlashcardStudioModal extends Modal {
     dropTrigger.createSpan({ cls: 'pdl-source-picker__trigger-icon', text: '▾' });
 
     const dropPanel = dropWrapper.createDiv({ cls: 'pdl-source-picker__panel' });
-    dropPanel.style.display = 'none';
 
     const dropSearch = dropPanel.createEl('input', {
       cls: 'pdl-source-picker__search',
@@ -200,14 +193,14 @@ class FlashcardStudioModal extends Modal {
     };
 
     const openPanel = () => {
-      dropPanel.style.display = 'flex';
+      dropPanel.addClass('is-open');
       dropSearch.value = '';
       renderDropItems('');
       window.requestAnimationFrame(() => dropSearch.focus());
     };
 
     const closePanel = () => {
-      dropPanel.style.display = 'none';
+      dropPanel.removeClass('is-open');
       dropSearch.value = '';
       activeIndex = -1;
     };
@@ -442,7 +435,7 @@ class FlashcardStudioModal extends Modal {
     remove.onclick = () => { this.cards.splice(index, 1); this.render(); };
 
     const preview = box.createDiv({ cls: "pdl-card-preview" });
-    const updatePreview = () => this.renderDraftPreview(preview, card);
+    const updatePreview = () => { void this.renderDraftPreview(preview, card); };
 
     this.addTextarea(box, card.type === "cloze" ? L("Statement with {{c1::hidden text}} or ==hidden text==", "Câu với {{c1::chữ ẩn}} hoặc ==chữ ẩn==") : L("Question", "Câu hỏi"), card.question, value => { card.question = value; updatePreview(); });
     if (card.type === "multiple-choice") {
@@ -466,40 +459,49 @@ class FlashcardStudioModal extends Modal {
   }
 
   /** Live preview of how the drafted card will look, so code is visible before saving. */
-  renderDraftPreview(preview, card) {
+  async renderDraftPreview(preview, card) {
     preview.empty();
     preview.createDiv({ cls: "pdl-card-preview-label", text: L("Preview", "Xem trước") });
     const body = preview.createDiv({ cls: "pdl-card-preview-body" });
-
-    const question = box => {
-      const el = box.createEl("h4", { cls: "pdl-question-text" });
-      el.innerHTML = formatRichInline(card.question || "");
+    const render = async (el, text) => {
+      el.empty();
+      try {
+        await MarkdownRenderer.render(this.app, String(text || ""), el, "", this);
+      } catch (_) {
+        el.setText(String(text || ""));
+      }
     };
-    const explanation = box => {
+
+    const question = async box => {
+      const el = box.createEl("h4", { cls: "pdl-question-text" });
+      await render(el, card.question || "");
+    };
+    const explanation = async box => {
       if (!card.explanation) return;
       box.createDiv({ cls: "pdl-section-label", text: L("DETAILED EXPLANATION", "GIẢI THÍCH CHI TIẾT") });
       const el = box.createDiv({ cls: "pdl-section-body pdl-rich markdown-rendered" });
-      el.innerHTML = formatRichText(card.explanation);
+      await render(el, card.explanation);
     };
 
     if (card.type === "multiple-choice") {
-      question(body);
+      await question(body);
       const choices = body.createDiv({ cls: "pdl-choices" });
-      (card.choices || []).forEach((choice, choiceIndex) => {
-        if (!String(choice || "").trim()) return;
+      for (let choiceIndex = 0; choiceIndex < (card.choices || []).length; choiceIndex++) {
+        const choice = card.choices[choiceIndex];
+        if (!String(choice || "").trim()) continue;
         const row = choices.createEl("button", { cls: "pdl-choice" });
         row.disabled = true;
         row.createSpan({ cls: "pdl-choice-key", text: String.fromCharCode(65 + choiceIndex) });
         const text = row.createSpan({ cls: "pdl-choice-text" });
-        text.innerHTML = formatRichInline(choice);
+        await render(text, choice);
         if (String(choice).trim() === String(card.answer || "").trim()) row.addClass("is-correct");
-      });
-      explanation(body);
+      }
+      await explanation(body);
       wireCodeToggles(preview);
       return;
     }
 
-    question(body);
+    await question(body);
     const answerText = card.type === "cloze" ? parseCloze(card.question || "").answers.join(", ") : (card.answer || "");
     if (!String(answerText).trim() && !card.explanation) {
       wireCodeToggles(preview);
@@ -508,9 +510,9 @@ class FlashcardStudioModal extends Modal {
     body.createDiv({ cls: "pdl-section-label", text: L("CORRECT ANSWER", "ĐÁP ÁN CHÍNH XÁC") });
     if (String(answerText).trim()) {
       const answerBody = body.createDiv({ cls: "pdl-section-body pdl-rich markdown-rendered" });
-      answerBody.innerHTML = formatRichCodeAware(answerText);
+      await render(answerBody, answerText);
     }
-    explanation(body);
+    await explanation(body);
     wireCodeToggles(preview);
   }
 

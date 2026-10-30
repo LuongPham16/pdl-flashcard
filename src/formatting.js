@@ -33,9 +33,11 @@ function codeLineHeight(pre) {
 function applyCodeCollapse(pre) {
   const lineHeight = codeLineHeight(pre);
   if (!lineHeight) return;
-  pre.style.maxHeight = pre.classList.contains("is-collapsed")
-    ? `${Math.round(lineHeight * CODE_COLLAPSED_LINES)}px`
-    : "";
+  pre.setCssStyles({
+    maxHeight: pre.classList.contains("is-collapsed")
+      ? `${Math.round(lineHeight * CODE_COLLAPSED_LINES)}px`
+      : ""
+  });
 }
 /** Wires up every code toggle inside a container. Safe to call more than once. */
 function wireCodeToggles(container) {

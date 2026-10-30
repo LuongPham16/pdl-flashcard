@@ -1,5 +1,5 @@
 /** The review dashboard: library, review session, heatmap and summary. */
-import { ItemView, Notice, setIcon, MarkdownRenderer } from "obsidian";
+import { ItemView, Notice, setIcon, MarkdownRenderer, sanitizeHTMLToDom } from "obsidian";
 import { VIEW_TYPE } from "./constants.js";
 import { dateKey, formatCount, nfcText, truncateLabel } from "./utils.js";
 import { L, locale } from "./i18n.js";
@@ -26,9 +26,8 @@ const READING_FONT = '"Times New Roman", Georgia, serif';
 function applyReadingFont(container) {
   if (!container || typeof container.querySelectorAll !== "function") return;
   const apply = element => {
-    if (!element || !element.style) return;
-    element.style.fontFamily = READING_FONT;
-    element.style.fontKerning = "none";
+    if (!element || typeof element.setCssStyles !== "function") return;
+    element.setCssStyles({ fontFamily: READING_FONT, fontKerning: "none" });
   };
   apply(container);
   container.querySelectorAll("*").forEach(element => {
@@ -87,7 +86,8 @@ export class PDLFlashcardView extends ItemView {
       markdown = source.replace(/\r\n?/g, "\n").split("\n").filter(Boolean).join(" ").trim();
     } else if (options.shortAsCode) {
       const html = formatRichCodeAware(source);
-      container.innerHTML = html;
+      container.empty();
+      container.appendChild(sanitizeHTMLToDom(html));
       container.addClass("pdl-rich");
       container.addClass("markdown-rendered");
       wireCodeToggles(container);
@@ -110,7 +110,8 @@ export class PDLFlashcardView extends ItemView {
     } catch (_) {
       const html = options.inline || options.cloze ? formatRichInline(source) : formatRichText(source, options);
       if (!html) return;
-      container.innerHTML = html;
+      container.empty();
+      container.appendChild(sanitizeHTMLToDom(html));
       container.addClass("pdl-rich");
       if (!options.inline) container.addClass("markdown-rendered");
       wireCodeToggles(container);
@@ -127,10 +128,12 @@ export class PDLFlashcardView extends ItemView {
     if (!/PDL(?:CLOZE|BLANK)/.test(html)) return;
     const encodeText = value => value
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    container.innerHTML = html.replace(/PDLCLOZE([\p{L}\p{N}_]+)PDLEND|PDLBLANK/gu, (match, word) => {
+    const replaced = html.replace(/PDLCLOZE([\p{L}\p{N}_]+)PDLEND|PDLBLANK/gu, (match, word) => {
       if (word === undefined) return `<span class="pdl-cloze-blank">[...]</span>`;
       return `<mark class="pdl-cloze-target">${encodeText(word)}</mark>`;
     });
+    container.empty();
+    container.appendChild(sanitizeHTMLToDom(replaced));
   }
 
   async onOpen() {

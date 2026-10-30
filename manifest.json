@@ -1,7 +1,7 @@
 {
   "id": "pdl-flashcard",
   "name": "PDL Flashcard",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "minAppVersion": "1.8.10",
   "description": "AI-assisted flashcards for active recall: generate decks from notes or highlighted text, review with adaptive scheduling.",
   "author": "PDL",

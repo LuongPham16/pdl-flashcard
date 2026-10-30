@@ -39,7 +39,7 @@ class ImagePickerModal extends Modal {
     const actions = root.createDiv({ cls: "pdl-image-actions" });
     const upload = actions.createEl("button", { cls: "mod-cta", text: L("Upload from computer", "Tải ảnh từ máy") });
     const input = actions.createEl("input", { attr: { type: "file", accept: "image/*" } });
-    input.style.display = "none";
+    input.addClass("is-hidden");
     upload.onclick = () => input.click();
     input.onchange = async () => {
       const file = input.files?.[0];

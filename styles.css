@@ -238,6 +238,9 @@
 }
 
 /* ── Connection status badge ── */
+.pdl-conn-icon.is-ok { color: #22c55e; }
+.pdl-conn-icon.is-error { color: #ef4444; }
+.pdl-conn-icon.is-pending { color: #f59e0b; }
 .pdl-conn-status {
   display: flex;
   align-items: center;
@@ -469,6 +472,10 @@
   border: 2px solid var(--text-normal);
   box-shadow: 5px 5px 0 var(--text-normal);
   z-index: 9999;
+}
+
+.pdl-source-picker__panel.is-open {
+  display: flex;
 }
 
 /* Search box inside panel */

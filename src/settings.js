@@ -123,7 +123,8 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
 
   /* ─────────────────── GENERAL TAB ─────────────────── */
   _renderGeneral(el) {
-    el.createEl("h3", { text: L("Appearance", "Giao diện") });
+    const heading = text => new Setting(el).setName(text).setHeading();
+    heading(L("Appearance", "Giao diện"));
     new Setting(el)
       .setName(L("Language", "Ngôn ngữ"))
       .setDesc(L("Language used for buttons, dialogs and notices.", "Ngôn ngữ dùng cho nút, hộp thoại và thông báo."))
@@ -149,14 +150,14 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
           if (view && !view.session?.length) view.renderDashboard();
         }));
 
-    el.createEl("h3", { text: L("Library", "Thư viện") });
+    heading(L("Library", "Thư viện"));
     new Setting(el).setName(L("Flashcard folder", "Thư mục flashcard")).setDesc(L("Stores deck notes linked to their source notes.", "Nơi lưu các note deck, liên kết với note nguồn.")).addText(t => t
       .setValue(this.plugin.settings.outputFolder)
       .onChange(async v => { this.plugin.settings.outputFolder = normalizePath(v.trim() || "06 - Flashcards"); await this.plugin.ensureOutputFolder(); await this.plugin.saveData(this.plugin.settings); }));
     new Setting(el).setName(L("Source folders", "Thư mục nguồn")).setDesc(L("Comma-separated. The plugin only reads Markdown source notes.", "Phân cách bằng dấy phẩy. Plugin chỉ đọc note Markdown nguồn.")).addTextArea(t => t
       .setValue(this.plugin.settings.sourceFolders.join(", "))
       .onChange(async v => { this.plugin.settings.sourceFolders = v.split(",").map(x => x.trim()).filter(Boolean); await this.plugin.saveData(this.plugin.settings); }));
-    el.createEl("h3", { text: L("Cards per flashcard type", "Số thẻ theo loại flashcard") });
+    heading(L("Cards per flashcard type", "Số thẻ theo loại flashcard"));
     el.createEl("p", { text: L("Default counts when you open the AI builder or the selection dialog.", "Số lượng mặc định khi mở AI builder hoặc dialog tạo từ đoạn bôi đen.") });
     const countSetting = (name, description, key, fallback) => new Setting(el)
       .setName(name)
@@ -173,7 +174,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
       .addToggle(t => t.setValue(this.plugin.settings.defaultReverseCards === true)
         .onChange(async v => { this.plugin.settings.defaultReverseCards = v; await this.plugin.saveData(this.plugin.settings); }));
 
-    el.createEl("h3", { text: L("Read aloud (TTS)", "Đọc to (TTS)") });
+    heading(L("Read aloud (TTS)", "Đọc to (TTS)"));
     const speech = "speechSynthesis" in window ? window.speechSynthesis : null;
     const voices = speech && typeof speech.getVoices === "function" ? speech.getVoices() || [] : [];
     new Setting(el)
@@ -210,7 +211,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
       .addButton(button => button.setButtonText(L("Refresh voices", "Làm mới giọng"))
         .onClick(() => this.display()));
 
-    el.createEl("h3", { text: L("Review behaviour", "Hành vi ôn tập") });
+    heading(L("Review behaviour", "Hành vi ôn tập"));
     new Setting(el)
       .setName(L("Re-show forgotten cards in the same session", "Hiện lại thẻ đã quên trong cùng phiên"))
       .setDesc(L("A card answered \"Again\" is queued once more at the end of the session, like Anki's relearning step.", "Thẻ bị chọn \"Again\" sẽ quay lại cuối phiên, giống bước học lại của Anki."))
@@ -235,12 +236,13 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
 
   /* ─────────────────── AI TAB ─────────────────── */
   _renderAI(el) {
+    const heading = text => new Setting(el).setName(text).setHeading();
     const ai = this.plugin.settings.ai;
     const provider = ai.provider || "openai";
     const providerLabel = { openai: "OpenAI", gemini: "Gemini", deepseek: "DeepSeek", claude: "Claude", custom: L("Custom", "Tùy chỉnh") }[provider] ?? provider;
 
     /* ── Provider ── */
-    el.createEl("h3", { text: L("AI Provider", "Nhà cung cấp AI") });
+    heading(L("AI Provider", "Nhà cung cấp AI"));
     new Setting(el)
       .setName(L("Provider", "Nhà cung cấp"))
       .setDesc(L("Select the AI provider to use.", "Chọn nhà cung cấp AI để sử dụng."))
@@ -254,14 +256,14 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
         .onChange(async v => { ai.provider = v; await this.plugin.saveData(this.plugin.settings); this.display(); }));
 
     /* ── API Key + Test ── */
-    el.createEl("h3", { text: L("Authentication", "Xác thực") });
+    heading(L("Authentication", "Xác thực"));
     const keySetting = new Setting(el)
       .setName("API Key")
       .setDesc(L(`API key for ${providerLabel}.`, `API key cho ${providerLabel}.`));
 
     keySetting.addText(t => {
       t.inputEl.type = "password";
-      t.inputEl.style.cssText = "width:260px;font-family:monospace";
+      t.inputEl.setCssStyles({ width: "260px", fontFamily: "monospace" });
       t.setPlaceholder(provider === "gemini" ? "AIzaSy..." : "sk-...")
         .setValue(ai.apiKeys?.[provider] || "")
         .onChange(async v => {
@@ -278,9 +280,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
       statusEl.empty();
       const icon = statusEl.createSpan({ cls: "pdl-conn-icon" });
       icon.textContent = ok === true ? "✓" : ok === false ? "✗" : "⟳";
-      if (ok === true) icon.style.color = "#22c55e";
-      else if (ok === false) icon.style.color = "#ef4444";
-      else icon.style.color = "#f59e0b";
+      icon.addClass(ok === true ? "is-ok" : ok === false ? "is-error" : "is-pending");
       statusEl.createSpan({ text: " " + msg });
     };
 
@@ -307,7 +307,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
         }));
 
     /* ── Model ── */
-    el.createEl("h3", { text: "Model" });
+    heading("Model");
 
     /* model dropdown (populated after fetch) */
     const modelRow = new Setting(el)
@@ -358,7 +358,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
       .setName(L("Or type model name manually", "Hoặc nhập tên model thủ công"))
       .setDesc(L("Overrides the dropdown above.", "Ghi đè lựa chọn ở trên."))
       .addText(t => {
-        t.inputEl.style.width = "220px";
+        t.inputEl.setCssStyles({ width: "220px" });
         t.setPlaceholder(KNOWN_MODELS[provider]?.[0] || "")
           .setValue(ai.models?.[provider] || "")
           .onChange(async v => {
@@ -371,7 +371,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
 
     /* ── Endpoint (not Gemini) ── */
     if (provider !== "gemini") {
-      el.createEl("h3", { text: "API Endpoint" });
+      heading("API Endpoint");
       new Setting(el)
         .setName(L("Base URL", "URL gốc"))
         .setDesc(L("Leave blank to use the default for this provider.", "Để trống để dùng mặc định của nhà cung cấp."))
@@ -382,7 +382,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
             claude:   "https://api.anthropic.com/v1/messages",
             custom:   "https://your-host/v1/chat/completions",
           };
-          t.inputEl.style.width = "340px";
+          t.inputEl.setCssStyles({ width: "340px" });
           t.setPlaceholder(placeholders[provider] || "")
             .setValue(ai.endpoints?.[provider] || "")
             .onChange(async v => {
@@ -395,7 +395,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
     }
 
     /* ── Custom Prompts ── */
-    el.createEl("h3", { text: L("Custom Prompts", "Prompt tùy chỉnh") });
+    heading(L("Custom Prompts", "Prompt tùy chỉnh"));
     el.createEl("p", { text: L("Use {basicCount}, {mcqCount}, {clozeCount} as placeholders.", "Dùng {basicCount}, {mcqCount}, {clozeCount} làm biến."), cls: "setting-item-description" });
 
     const prompts = this.plugin.settings.aiPrompts || DEFAULT_AI_PROMPTS;
@@ -435,7 +435,8 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
     /* Hero banner */
     const hero = el.createDiv({ cls: "pdl-fb-hero" });
     hero.createDiv({ cls: "pdl-fb-emoji", text: "💌" });
-    hero.createEl("h3", { text: L("Send feedback to the developer", "Gửi phản hồi cho tác giả"), cls: "pdl-fb-title" });
+    const heroTitle = new Setting(hero).setName(L("Send feedback to the developer", "Gửi phản hồi cho tác giả")).setHeading();
+    heroTitle.settingEl?.addClass("pdl-fb-title");
     hero.createEl("p", {
       text: L(
         "Your feedback helps improve PDL Flashcard. Bug reports, feature ideas, and general thoughts are all welcome!",

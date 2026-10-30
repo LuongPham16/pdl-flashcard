@@ -58,7 +58,12 @@ export class El {
     this.children.push(el);
     return el;
   }
-  appendChild(child) { child.parentNode = this; this.children.push(child); return child; }
+  appendChild(child) {
+    if (child && child.__html !== undefined) { this.innerHTML = child.__html; return child; }
+    child.parentNode = this;
+    this.children.push(child);
+    return child;
+  }
   append(...nodes) { nodes.forEach(node => this.appendChild(node)); }
   removeChild(child) {
     const index = this.children.indexOf(child);
@@ -71,6 +76,8 @@ export class El {
   addClass(c) { this.classList.add(c); return this; }
   removeClass(c) { this.classList.remove(c); return this; }
   toggleClass(c, on) { return this.classList.toggle(c, on); }
+  setCssStyles(styles) { Object.assign(this.style, styles); return this; }
+  setCssProps(props) { Object.assign(this.style, props); return this; }
   setAttr(k, v) {
     this.attrs[k] = v;
     if (k.startsWith("data-")) this.dataset[k.slice(5).replace(/-([a-z])/g, (_, ch) => ch.toUpperCase())] = String(v);
