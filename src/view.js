@@ -438,7 +438,9 @@ export class PDLFlashcardView extends ItemView {
     undo.disabled = !this.undoStack.length;
     undo.onclick = () => void this.undoLastGrade();
     bar.createSpan({ cls: "pdl-folio", text: L(`CARD ${String(this.index + 1).padStart(2,"0")} / ${String(this.session.length).padStart(2,"0")}`, `THẺ ${String(this.index + 1).padStart(2,"0")} / ${String(this.session.length).padStart(2,"0")}`) });
-    const progress = bar.createDiv({ cls: "pdl-progress" }); progress.createDiv({ cls: "pdl-progress-fill", attr: { style: `width:${(this.index / this.session.length) * 100}%` } });
+    const progress = bar.createDiv({ cls: "pdl-progress" });
+    const progressFill = progress.createDiv({ cls: "pdl-progress-fill" });
+    progressFill.setCssProps({ width: `${(this.index / this.session.length) * 100}%` });
     // A long note name used to stretch (and then crush) the review bar. The button
     // now keeps a fixed label and moves the real name into the tooltip.
     const sourceName = card.sourceFile

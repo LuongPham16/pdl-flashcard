@@ -36,7 +36,7 @@ class FlashcardExportImportModal extends Modal {
     copy.createEl("h2", { text: L("Import & Export Flashcards", "Nhập & xuất flashcard") });
     copy.createEl("p", { text: L("Export cards to CSV/JSON or import new cards from external sources.", "Xuất thẻ ra CSV/JSON hoặc nhập thẻ mới từ nguồn bên ngoài.") });
 
-    const tabs = root.createDiv({ cls: "pdl-stats-ranges", attr: { style: "margin: 16px 0;" } });
+    const tabs = root.createDiv({ cls: "pdl-stats-ranges pdl-import-tabs" });
     const expBtn = tabs.createEl("button", { text: L("Export Decks", "Xuất deck"), attr: { "aria-pressed": String(this.activeTab === "export") } });
     if (this.activeTab === "export") expBtn.addClass("is-active");
     expBtn.onclick = () => { this.activeTab = "export"; this.render(); };

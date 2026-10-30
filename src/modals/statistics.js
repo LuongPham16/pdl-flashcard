@@ -79,18 +79,43 @@ class FlashcardStatisticsModal extends Modal {
     this.panelTitle(activity, L("Review Activity", "Hoạt động ôn tập"), L(`${formatCount(data.recent.length)} reviews over ${this.range} days`, `${formatCount(data.recent.length)} lượt ôn trong ${this.range} ngày`));
     const max=Math.max(1,...data.days.map(day=>day.count));
     const bars=activity.createDiv({cls:"pdl-activity-chart",attr:{role:"img","aria-label":L(`${data.recent.length} reviews over the last ${this.range} days`, `${data.recent.length} lượt ôn trong ${this.range} ngày qua`)}});
-    data.days.forEach((day,index)=>{const bar=bars.createDiv({cls:"pdl-activity-day",attr:{tabindex:"0",title:L(`${day.label}: ${day.count} reviews`, `${day.label}: ${day.count} lượt ôn`)}});bar.createDiv({cls:"pdl-activity-bar",attr:{style:`height:${Math.max(day.count?8:2,day.count/max*100)}%`}});if(this.range<=30&&(index===0||index===data.days.length-1||index%7===0))bar.createSpan({text:day.label});});
+    data.days.forEach((day,index)=>{
+      const bar=bars.createDiv({cls:"pdl-activity-day",attr:{tabindex:"0",title:L(`${day.label}: ${day.count} reviews`, `${day.label}: ${day.count} lượt ôn`)}});
+      const fill=bar.createDiv({cls:"pdl-activity-bar"});
+      fill.setCssProps({ height: `${Math.max(day.count?8:2,day.count/max*100)}%` });
+      if(this.range<=30&&(index===0||index===data.days.length-1||index%7===0))bar.createSpan({text:day.label});
+    });
     const ratings=grid.createDiv({cls:"pdl-stats-panel pdl-ratings-panel"});
     this.panelTitle(ratings, L("Rating Distribution", "Phân bố đánh giá"), L("Recall quality for the selected range", "Chất lượng ghi nhớ trong khoảng đã chọn"));
     const ratingTotal=Math.max(1,data.ratings.reduce((sum,item)=>sum+item.count,0));
     const labels=[L("Again", "Lại"), L("Hard", "Khó"), L("Good", "Tốt"), L("Easy", "Dễ")];
-    data.ratings.forEach((item,index)=>{const row=ratings.createDiv({cls:`pdl-rating-row is-${item.grade}`});row.createSpan({text:labels[index]});const track=row.createDiv({cls:"pdl-rating-track"});track.createDiv({attr:{style:`width:${item.count/ratingTotal*100}%`}});row.createEl("strong",{text:formatCount(item.count)});});
+    data.ratings.forEach((item,index)=>{
+      const row=ratings.createDiv({cls:`pdl-rating-row is-${item.grade}`});
+      row.createSpan({text:labels[index]});
+      const track=row.createDiv({cls:"pdl-rating-track"});
+      const fill=track.createDiv();
+      fill.setCssProps({ width: `${item.count/ratingTotal*100}%` });
+      row.createEl("strong",{text:formatCount(item.count)});
+    });
     const decks=root.createDiv({cls:"pdl-stats-panel pdl-deck-performance"});
     this.panelTitle(decks, L("Deck Performance", "Hiệu quả theo deck"), L("Highest workload first · top 12 decks", "Ưu tiên deck nhiều việc · 12 deck đầu"));
     const table=decks.createDiv({cls:"pdl-stats-deck-table"});
     const header=table.createDiv({cls:"pdl-stats-deck-row is-header"});
     [L("Deck", "Deck"), L("Cards", "Thẻ"), L("Due", "Đến hạn"), L("Mature", "Thành thạo"), L("Reviews", "Lượt ôn")].forEach(label=>header.createSpan({text:label}));
-    data.deckRows.forEach(deck=>{const row=table.createDiv({cls:"pdl-stats-deck-row"});const name=row.createDiv();name.createEl("strong",{text:deck.title});name.createSpan({text:deck.source});row.createSpan({text:formatCount(deck.cards.length)});row.createSpan({text:formatCount(deck.due)});const progress=row.createDiv({cls:"pdl-maturity-cell"});progress.createSpan({text:`${deck.cards.length?Math.round(deck.mature/deck.cards.length*100):0}%`});const track=progress.createDiv();track.createDiv({attr:{style:`width:${deck.cards.length?deck.mature/deck.cards.length*100:0}%`}});row.createSpan({text:formatCount(deck.reviews)});});
+    data.deckRows.forEach(deck=>{
+      const row=table.createDiv({cls:"pdl-stats-deck-row"});
+      const name=row.createDiv();
+      name.createEl("strong",{text:deck.title});
+      name.createSpan({text:deck.source});
+      row.createSpan({text:formatCount(deck.cards.length)});
+      row.createSpan({text:formatCount(deck.due)});
+      const progress=row.createDiv({cls:"pdl-maturity-cell"});
+      progress.createSpan({text:`${deck.cards.length?Math.round(deck.mature/deck.cards.length*100):0}%`});
+      const track=progress.createDiv();
+      const fill=track.createDiv();
+      fill.setCssProps({ width: `${deck.cards.length?deck.mature/deck.cards.length*100:0}%` });
+      row.createSpan({text:formatCount(deck.reviews)});
+    });
     if(!data.deckRows.length)table.createDiv({cls:"pdl-stats-empty",text:L("Create a deck to start measuring progress.", "Tạo một deck để bắt đầu đo tiến độ.")});
     const hard=root.createDiv({cls:"pdl-stats-panel pdl-hardest-panel"});
     this.panelTitle(hard, L("Cards Needing Attention", "Thẻ cần chú ý"), L("Cards with the most lapses", "Thẻ có nhiều lần quên nhất"));

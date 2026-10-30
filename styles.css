@@ -1478,6 +1478,9 @@
 }
 
 /* ---- Import target note ---- */
+.pdl-import-tabs {
+  margin: 16px 0;
+}
 .pdl-import-target,
 .pdl-import-delimiter {
   width: 100%;
