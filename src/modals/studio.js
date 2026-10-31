@@ -449,7 +449,7 @@ class FlashcardStudioModal extends Modal {
     if (card.type !== "cloze") {
       this.addTextarea(box, card.type === "multiple-choice" ? L("Correct answer (must exactly match one choice)", "Đáp án đúng (phải trùng khớp một lựa chọn)") : L("Answer", "Đáp án"), card.answer, value => { card.answer = value; updatePreview(); });
     }
-    this.addTextarea(box, L("Tags (comma separated, e.g. devops, eng)", "Tags (phân cách bằng dấu phẩy, ví dụ devops, eng)"), (card.tags || []).join(", "), value => {
+    this.addTextarea(box, L("Tags (comma separated, e.g. biology, exam)", "Tags (phân cách bằng dấu phẩy, ví dụ devops, eng)"), (card.tags || []).join(", "), value => {
       card.tags = value.split(",").map(t => t.trim()).filter(Boolean);
       updatePreview();
     }, true, false);

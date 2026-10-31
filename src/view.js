@@ -265,15 +265,13 @@ export class PDLFlashcardView extends ItemView {
     section.addClass(`pdl-heatmap-palette-${palette}`);
     const legend=head.createDiv({cls:"pdl-heatmap-legend",attr:{"aria-label":L("Activity intensity legend", "Chú giải mức độ hoạt động"), role:"button", tabindex:"0"}});
     legend.createSpan({text:L("Less", "Ít")}); [0,1,2,3,4].forEach(level=>legend.createSpan({cls:`pdl-heatmap-swatch level-${level}`})); legend.createSpan({text:L("More", "Nhiều")});
-    const shapes = ["square", "rounded", "circle", "diamond", "hexagon"];
+    const shapes = ["rounded-rectangle", "rounded-square", "heart"];
     const shapeNames = {
-      square: L("Square", "Vuông"),
-      rounded: L("Rounded", "Bo góc"),
-      circle: L("Circle", "Tròn"),
-      diamond: L("Diamond", "Kim cương"),
-      hexagon: L("Hexagon", "Lục giác")
+      "rounded-rectangle": L("Rounded rectangle", "Chữ nhật bo tròn"),
+      "rounded-square": L("Rounded square", "Vuông bo tròn"),
+      heart: L("Heart", "Trái tim")
     };
-    let shape = shapes.includes(this.plugin.settings.heatmapShape) ? this.plugin.settings.heatmapShape : "square";
+    let shape = shapes.includes(this.plugin.settings.heatmapShape) ? this.plugin.settings.heatmapShape : "rounded-rectangle";
     section.addClass(`pdl-heatmap-shape-${shape}`);
     const shapeToggle = legend.createSpan({ cls: "pdl-heatmap-shape-toggle", attr: { role: "button", tabindex: "0" } });
     const shapePreview = shapeToggle.createSpan({ cls: `pdl-heatmap-shape-preview is-${shape}` });
@@ -342,7 +340,7 @@ export class PDLFlashcardView extends ItemView {
       const dueB = b[1].filter(card => !this.plugin.settings.schedule[card.id] || this.plugin.settings.schedule[card.id].due <= Date.now()).length;
       return dueB - dueA || a[1][0].deckTitle.localeCompare(b[1][0].deckTitle, locale());
     });
-    const pageSize = Math.max(1, Number(this.plugin.settings.decksPerPage) || 5);
+    const pageSize = Math.max(1, Math.min(5, Number(this.plugin.settings.decksPerPage) || 5));
     const pageCount = Math.max(1, Math.ceil(entries.length / pageSize));
     this.deckPage = Math.min(this.deckPage, pageCount - 1);
     const visible = entries.slice(this.deckPage * pageSize, (this.deckPage + 1) * pageSize);
@@ -558,7 +556,6 @@ export class PDLFlashcardView extends ItemView {
         this.renderClozeInputs(answer, card);
       } else if (!this.revealed) {
         answer.addClass("is-freeform");
-        answer.createEl("p", { cls: "pdl-prompt", text: L("Say it aloud, write it down, or reconstruct the answer in your mind.", "Hãy nói to, viết ra, hoặc tự dựng lại câu trả lời trong đầu.") });
         const reveal = answer.createEl("button", { cls: "pdl-reveal", text: L("Reveal answer", "Hiện đáp án") });
         reveal.onclick = () => this.reveal();
         answer.createEl("kbd", { cls: "pdl-reveal-hint", text: L("Space", "Space") });
@@ -588,8 +585,9 @@ export class PDLFlashcardView extends ItemView {
           row.createSpan({ cls: "pdl-mcq-label", text: label });
           row.createSpan({ cls: `pdl-mcq-value is-${kind}`, text: String(value ?? "") });
         };
-        appendRow(L("Your choice", "Lựa chọn của bạn"), this.selectedChoice, isRight ? "correct" : "wrong");
-        if (!isRight) appendRow(L("Correct answer", "Đáp án đúng"), card.answer, "correct");
+        if (this.selectedChoice != null) {
+          appendRow(L("Your choice", "Lựa chọn của bạn"), this.selectedChoice, isRight ? "correct" : "wrong");
+        }
       }
 
       const answerText = card.type === "cloze" ? parseCloze(card.question).answers.join(", ") : card.answer;

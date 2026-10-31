@@ -38,7 +38,7 @@ class PDLFlashcardPlugin extends Plugin {
     this.settings.aiPrompts ||= DEFAULT_AI_PROMPTS;
     this.settings.selectedPromptId ||= "default";
     this.settings.language = this.settings.language === "vi" ? "vi" : "en";
-    this.settings.decksPerPage = Math.max(1, Math.min(50, Number(this.settings.decksPerPage) || 5));
+    this.settings.decksPerPage = Math.max(1, Math.min(5, Number(this.settings.decksPerPage) || 5));
     // The session-size control was replaced by per-type card counts; keep review
     // sessions bounded at the previous default instead of a hidden stale value.
     this.settings.sessionSize = DEFAULTS.sessionSize;
@@ -48,15 +48,41 @@ class PDLFlashcardPlugin extends Plugin {
     this.settings.defaultReverseCards = this.settings.defaultReverseCards === true;
     this.settings.heatmapPalette = ["blue", "green", "orange", "purple"].includes(this.settings.heatmapPalette)
       ? this.settings.heatmapPalette : "blue";
-    this.settings.heatmapShape = ["square", "rounded", "circle", "diamond", "hexagon"].includes(this.settings.heatmapShape)
-      ? this.settings.heatmapShape : "square";
+    const heatmapShapeAliases = {
+      square: "rounded-square",
+      rounded: "rounded-square",
+      circle: "heart",
+      diamond: "heart",
+      hexagon: "rounded-rectangle"
+    };
+    this.settings.heatmapShape = heatmapShapeAliases[this.settings.heatmapShape]
+      || (["rounded-rectangle", "rounded-square", "heart"].includes(this.settings.heatmapShape)
+        ? this.settings.heatmapShape
+        : "rounded-rectangle");
     this.settings.ttsVoice = String(this.settings.ttsVoice || "");
     this.settings.ttsRate = Math.max(0.5, Math.min(2, Number(this.settings.ttsRate) || 1));
 
     // Older versions shipped built-in prompts without the output-format rules,
     // which is what made AI cards arrive with broken spacing and unformatted code.
     let promptsUpgraded = false;
+    const beforePromptCount = this.settings.aiPrompts.length;
+    this.settings.aiPrompts = this.settings.aiPrompts.filter(prompt =>
+      !(prompt.id === "technical" && String(prompt.name || "").includes("Technical & DevOps"))
+    );
+    if (this.settings.aiPrompts.length !== beforePromptCount) {
+      promptsUpgraded = true;
+      if (this.settings.selectedPromptId === "technical") this.settings.selectedPromptId = "default";
+    }
+    if (!this.settings.aiPrompts.length) {
+      this.settings.aiPrompts = [...DEFAULT_AI_PROMPTS];
+      this.settings.selectedPromptId = "default";
+      promptsUpgraded = true;
+    }
     this.settings.aiPrompts = this.settings.aiPrompts.map(prompt => {
+      if (prompt.id === "default" && String(prompt.template || "").includes("Test active recall and conceptual understanding. Avoid vague questions.")) {
+        const fresh = DEFAULT_AI_PROMPTS.find(item => item.id === "default");
+        if (fresh) return { ...prompt, name: fresh.name, template: fresh.template };
+      }
       const isBuiltIn = DEFAULT_AI_PROMPTS.some(item => item.id === prompt.id);
       if (!isBuiltIn || String(prompt.template || "").includes("Output formatting rules")) return prompt;
       promptsUpgraded = true;

@@ -99,7 +99,11 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
     else view.renderDashboard();
   }
 
-  display() {
+  display() { this.renderSettings(); }
+
+  update() { this.renderSettings(); }
+
+  renderSettings() {
     const { containerEl } = this; containerEl.empty();
 
     /* ── Tab bar ── */
@@ -111,7 +115,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
     ];
     tabs.forEach(({ id, label }) => {
       const btn = tabBar.createEl("button", { text: label, cls: "pdl-settings-tab" + (this._tab === id ? " is-active" : "") });
-      btn.onclick = () => { this._tab = id; this.display(); };
+      btn.onclick = () => { this._tab = id; this.update(); };
     });
 
     /* ── Tab content ── */
@@ -136,15 +140,15 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
           this.plugin.settings.language = v;
           setLanguage(v);
           await this.plugin.saveData(this.plugin.settings);
-          this.display(); this.refreshView();
+          this.update(); this.refreshView();
         }));
     new Setting(el)
       .setName(L("Decks per page", "Số deck mỗi trang"))
-      .setDesc(L("How many decks are listed on one page of the library. Default: 5.", "Số deck hiển thị trên một trang thư viện. Mặc định: 5."))
-      .addSlider(s => s.setLimits(1, 50, 1).setDynamicTooltip()
-        .setValue(Math.max(1, Number(this.plugin.settings.decksPerPage) || 5))
+      .setDesc(L("Maximum decks listed on one page of the library. Default: 5.", "Tối đa số deck hiển thị trên một trang thư viện. Mặc định: 5."))
+      .addSlider(s => s.setLimits(1, 5, 1).setDynamicTooltip()
+        .setValue(Math.max(1, Math.min(5, Number(this.plugin.settings.decksPerPage) || 5)))
         .onChange(async v => {
-          this.plugin.settings.decksPerPage = Math.max(1, Number(v) || 5);
+          this.plugin.settings.decksPerPage = Math.max(1, Math.min(5, Number(v) || 5));
           await this.plugin.saveData(this.plugin.settings);
           const view = this.plugin.getView();
           if (view && !view.session?.length) view.renderDashboard();
@@ -209,7 +213,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
           await this.plugin.saveData(this.plugin.settings);
         }))
       .addButton(button => button.setButtonText(L("Refresh voices", "Làm mới giọng"))
-        .onClick(() => this.display()));
+        .onClick(() => this.update()));
 
     heading(L("Review behaviour", "Hành vi ôn tập"));
     new Setting(el)
@@ -253,7 +257,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
         .addOption("claude",   "Claude (Anthropic)")
         .addOption("custom",   L("Custom (OpenAI-compatible)", "Tùy chỉnh (tương thích OpenAI)"))
         .setValue(provider)
-        .onChange(async v => { ai.provider = v; await this.plugin.saveData(this.plugin.settings); this.display(); }));
+        .onChange(async v => { ai.provider = v; await this.plugin.saveData(this.plugin.settings); this.update(); }));
 
     /* ── API Key + Test ── */
     heading(L("Authentication", "Xác thực"));
@@ -409,7 +413,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
           this.plugin.settings.aiPrompts.splice(idx, 1);
           if (this.plugin.settings.selectedPromptId === promptItem.id)
             this.plugin.settings.selectedPromptId = this.plugin.settings.aiPrompts[0].id;
-          await this.plugin.saveData(this.plugin.settings); this.display();
+          await this.plugin.saveData(this.plugin.settings); this.update();
         }));
       new Setting(pBox).setName(L("Preset Name", "Tên preset")).addText(t => t.setValue(promptItem.name).onChange(async v => { promptItem.name = v.trim() || L(`Preset ${idx + 1}`, `Preset ${idx + 1}`); await this.plugin.saveData(this.plugin.settings); }));
       new Setting(pBox).setName(L("Prompt Template", "Mẫu prompt")).addTextArea(t => t.setValue(promptItem.template).onChange(async v => { promptItem.template = v; await this.plugin.saveData(this.plugin.settings); }));
@@ -424,7 +428,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
           id: newId, name: L("New Prompt Preset", "Preset mới"),
           template: `Create flashcards from the note below.\n- {basicCount} Q&A cards (type="basic", question, answer, explanation, tags)\n- {mcqCount} MCQ cards (type="multiple-choice", question, 4 choices, answer, explanation, tags)\n- {clozeCount} Cloze cards (type="cloze", question with {{c1::hidden text}}, answer, explanation, tags)`,
         });
-        await this.plugin.saveData(this.plugin.settings); this.display();
+        await this.plugin.saveData(this.plugin.settings); this.update();
       }));
   }
 

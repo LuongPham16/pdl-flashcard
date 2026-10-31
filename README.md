@@ -4,7 +4,7 @@
 highlighted passage — into editable flashcard decks, then review them with adaptive
 spaced repetition.
 
-> **Version 1.0.5** · requires Obsidian **1.13.0+** · desktop and mobile · submitted to
+> **Version 1.0.6** · requires Obsidian **1.13.0+** · desktop and mobile · submitted to
 > the Obsidian community plugin directory.
 
 ## Highlights
@@ -76,7 +76,15 @@ In the card editor or Studio, press **Image** next to Question / Answer / Explan
 
 ### Import
 
-**Import & Export → Import Cards** accepts JSON or delimited text:
+**Import & Export → Import Cards** accepts pasted text or external files:
+
+- Text: CSV, TSV, TXT, JSON
+- Files: `.csv`, `.tsv`, `.txt`, `.json`, `.md`, `.xlsx` / `.xlsm`
+- Three standard templates: **Basic Q&A**, **Multiple choice**, **Cloze**
+- The template adapts its columns to the card type and its separator to the chosen
+  delimiter (comma, semicolon, tab, pipe, `::`, space).
+
+Delimited formats:
 
 | Option | Example |
 | --- | --- |
@@ -117,7 +125,7 @@ when you actually press **Import Cards**.
 
 - Due / today / mature counts, streak and a 26-week activity heatmap.
 - Click the *Less … More* legend to change heatmap colours; click the small shape icon to
-  change cells between square, rounded, circle, diamond and hexagon.
+  change cells between rounded rectangle, rounded square and heart.
 - Deck library with configurable page size and first / previous / page-jump / next / last
   navigation.
 - Statistics for retention, rating distribution, workload and hardest cards.
@@ -163,7 +171,7 @@ when you actually press **Import Cards**.
 
 **General**
 
-- Language (English / Tiếng Việt), decks per page
+- Language (English / Tiếng Việt), decks per page (1–5, max 5 per page)
 - Flashcard folder, source folders, excluded folders
 - Default Q&A / MCQ / cloze counts and reverse-card default
 - Read-aloud voice and speed
@@ -240,7 +248,7 @@ npm run deploy       # build + copy using .deploy.json
 ```
 
 The test suite runs against the **built bundle**, so rebuild after changing `src/` or
-`styles.css`. Current suite: **148 tests**.
+`styles.css`. Current suite: **156 tests**.
 
 ### Project layout
 

@@ -55,7 +55,7 @@ function normalizeCardText(text) {
   return nfcText(text)
     .replace(/\r\n?/g, "\n")
     .replace(/[\u00a0\u2007\u202f]/g, " ")
-    .replace(/[\u200b\u200c\u200d\ufeff\u200e\u200f]/g, "")
+    .replace(/\u200b|\u200c|\u200d|\ufeff|\u200e|\u200f/g, "")
     .replace(/[\u2022\u25cf\u25aa]/g, "-")
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201c\u201d]/g, '"')
@@ -236,12 +236,12 @@ function looksLikeConfigLine(line) {
   if (!value || value.length > 200) return false;
   // A sentence ending in punctuation is prose, not a config line.
   if (/[:.?!;,]$/.test(value) || value.length > 80) return false;
-  if (/^[A-Za-z_][\w.\-]*\s*=\s*\S/.test(value)) return true;
-  if (/^[A-Za-z_][\w.\-]*\s*:\s*\S/.test(value)) return true;
-  if (/^[A-Za-z_][\w.\-]*\s*\{$/.test(value)) return true;
+  if (/^[A-Za-z_][\w.-]*\s*=\s*\S/.test(value)) return true;
+  if (/^[A-Za-z_][\w.-]*\s*:\s*\S/.test(value)) return true;
+  if (/^[A-Za-z_][\w.-]*\s*\{$/.test(value)) return true;
   if (/^<\/?[A-Za-z][\w:-]*[ />]/.test(value)) return true;
   if (/^(true|false|null|\d+(\.\d+)?)$/i.test(value)) return true;
-  if (/^["'][\w.\-/]+["']\s*[,:]?$/.test(value)) return true;
+  if (/^["'][\w./-]+["']\s*[,:]?$/.test(value)) return true;
   return false;
 }
 
@@ -277,7 +277,7 @@ function isDefiniteCodeLine(line) {
   if (/\|\||&&|\$\(|>>|<<|\s\|\s/.test(value)) return true;
   if (looksLikeConfigLine(value)) return true;
   const words = value.split(/\s+/).length;
-  if (words >= 3 && words <= 16 && /^(?:sudo\s+)?[a-z][\w.\-/]*\s+-{1,2}[A-Za-z]/.test(value)) return true;
+  if (words >= 3 && words <= 16 && /^(?:sudo\s+)?[a-z][\w./-]*\s+-{1,2}[A-Za-z]/.test(value)) return true;
   if (words <= 14 && /^(docker|docker-compose|kubectl|helm|terraform|ansible|ansible-playbook|systemctl|journalctl|git|npm|npx|pnpm|yarn|pip3?|brew|apt|apt-get|dnf|yum)\s+(compose|run|exec|logs|ps|build|up|down|start|stop|restart|status|inspect|pull|push|commit|merge|rebase|stash|reset|checkout|switch|branch|remote|config|add|fetch|clone|apply|describe|get|delete|create|list|install)\b/.test(value)) return true;
   return false;
 }

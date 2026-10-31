@@ -83,7 +83,7 @@ class ImagePickerModal extends Modal {
   async saveImage(file) {
     const folder = normalizePath(`${this.plugin.settings.outputFolder}/attachments`);
     try { await this.app.vault.createFolder(folder); } catch (_) { /* already exists */ }
-    const safeName = String(file.name || "image.png").replace(/[^\w.\-]+/g, "-");
+    const safeName = String(file.name || "image.png").replace(/[^\w.-]+/g, "-");
     const path = normalizePath(`${folder}/${Date.now()}-${safeName}`);
     const buffer = await file.arrayBuffer();
     await this.app.vault.createBinary(path, buffer);

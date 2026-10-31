@@ -55,12 +55,37 @@ function delimiterCounts(lines) {
 }
 
 function detectDelimiter(text) {
-  const lines = String(text || "").split(/\r?\n/).filter(line => line.trim());
+  const lines = String(text || "").split(/\r?\n/)
+    .filter(line => line.trim() && !/^\s*(#|\/\/)/.test(line));
   if (lines.some(line => line.includes("::"))) return "double-colon";
   if (lines.some(line => line.includes("\t"))) return "tab";
   const counts = delimiterCounts(lines);
   const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
   return best && best[1] > 0 ? best[0] : "comma";
+}
+
+/** Convert markdown tables or fenced card data into the same import text. */
+function markdownToImportText(text) {
+  const source = String(text || "");
+  const fenced = source.match(/```(?:pdl-flashcards|json|csv|tsv|txt)?\s*\r?\n([\s\S]*?)```/i);
+  if (fenced) return fenced[1].trim();
+  const tableLines = source.split(/\r?\n/).filter(line => /^\s*\|.*\|\s*$/.test(line));
+  if (tableLines.length >= 2) {
+    const rows = tableLines.map(line => line.trim().replace(/^\||\|$/g, "").split("|").map(cell => cell.trim()));
+    const dataRows = rows.filter(row => !row.every(cell => /^:?-{2,}:?$/.test(cell)));
+    return dataRows
+      .map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+  }
+  return source;
+}
+
+/** Convert worksheet rows (first sheet) to quoted CSV for the shared parser. */
+function sheetRowsToCsv(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter(row => Array.isArray(row) && row.some(cell => String(cell ?? "").trim()))
+    .map(row => row.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))
+    .join("\n");
 }
 
 function parseJsonCards(text) {
@@ -87,25 +112,31 @@ function parseImportCards(text, delimiter = "auto") {
     return { cards: parseJsonCards(source), delimiter: "json" };
   }
   const chosen = delimiter && delimiter !== "auto" ? delimiter : detectDelimiter(source);
-  const lines = source.split(/\r?\n/).filter(line => line.trim());
+  const lines = source.split(/\r?\n/)
+    .filter(line => line.trim() && !/^\s*(#|\/\/)/.test(line));
   const headerCells = lines.length ? splitDelimited(lines[0], chosen) : [];
-  const start = lines.length > 1
-    && headerCells.length >= 2
+  const looksLikeHeader = headerCells.length >= 2
     && /^(question|front)$/i.test(headerCells[0])
-    && /^(answer|back)$/i.test(headerCells[1]) ? 1 : 0;
+    && /^(answer|back)$/i.test(headerCells[1]);
+  const start = looksLikeHeader && (lines.length > 1 || headerCells.length >= 3) ? 1 : 0;
   const cards = [];
   for (let index = start; index < lines.length; index++) {
     const columns = splitDelimited(lines[index], chosen);
     if (columns.length < 2) continue;
     const question = columns[0];
-    const answer = columns[1];
-    if (!question || !answer) continue;
     const type = (columns[2] || "basic").trim();
     const explanation = (columns[3] || "").trim();
     const tags = (columns[4] || "").split(/[,|]/).map(tag => tag.trim()).filter(Boolean);
-    cards.push({ type, question, answer, explanation, tags });
+    const choices = columns.slice(5, 9).map(choice => choice.trim()).filter(Boolean);
+    let answer = columns[1];
+    if (!answer && type === "cloze") {
+      const matches = [...question.matchAll(/\{\{(?:c\d+::)?([^}:]+)(?:::([^}]+))?\}\}/g)];
+      answer = matches.map(match => match[1].trim()).filter(Boolean).join(", ");
+    }
+    if (!question || !answer) continue;
+    cards.push({ type, question, answer, explanation, tags, choices: choices.length >= 2 ? choices : undefined });
   }
   return { cards, delimiter: chosen };
 }
 
-export { DELIMITERS, DELIMITER_OPTIONS, detectDelimiter, parseImportCards };
+export { DELIMITERS, DELIMITER_OPTIONS, detectDelimiter, markdownToImportText, parseImportCards, sheetRowsToCsv };

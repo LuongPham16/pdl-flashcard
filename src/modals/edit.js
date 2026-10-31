@@ -81,7 +81,7 @@ class FlashcardEditModal extends Modal {
     if (this.values.type !== "cloze") {
       this.field(root, this.values.type === "multiple-choice" ? L("Correct answer", "Đáp án đúng") : L("Answer", "Đáp án"), "answer");
     }
-    this.field(root, L("Tags (comma separated, e.g. devops, eng)", "Tags (phân cách bằng dấu phẩy, ví dụ devops, eng)"), "tags", true, false);
+    this.field(root, L("Tags (comma separated, e.g. biology, exam)", "Tags (phân cách bằng dấu phẩy, ví dụ biology, exam)"), "tags", true, false);
     this.field(root, L("Explanation (optional)", "Giải thích (không bắt buộc)"), "explanation", true);
 
     const footer = root.createDiv({ cls: "pdl-edit-footer" }); const cancel = footer.createEl("button", { text: L("Cancel", "Hủy") }); cancel.onclick=()=>this.close(); const save=footer.createEl("button", { cls:"mod-cta", text:L("Save changes", "Lưu thay đổi") });

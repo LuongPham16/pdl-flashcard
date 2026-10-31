@@ -3,7 +3,7 @@
 **PDL Flashcard** giúp bạn tạo và ôn tập flashcard ngay trong Obsidian theo phương pháp
 lặp lại ngắt quãng. Plugin có thể nhờ AI đọc note để soạn thẻ nháp, hoặc bạn tự viết thẻ.
 
-> Phiên bản **1.0.5**. Yêu cầu Obsidian **1.13.0+**. Giao diện hỗ trợ tiếng Anh và tiếng Việt.
+> Phiên bản **1.0.6**. Yêu cầu Obsidian **1.13.0+**. Giao diện hỗ trợ tiếng Anh và tiếng Việt.
 
 ## 1. Cài đặt
 
@@ -125,7 +125,13 @@ Mở **PDL Flashcard: Import or export flashcards**.
 
 ### Import
 
-Hỗ trợ JSON hoặc text phân cách:
+Hỗ trợ dán text hoặc chọn file ngoài:
+
+- File: `.csv`, `.tsv`, `.txt`, `.json`, `.md`, `.xlsx` / `.xlsm`
+- 3 mẫu chuẩn: **Basic Q&A**, **Multiple choice**, **Cloze**
+- Mẫu tự đổi số cột theo loại thẻ và đổi dấu phân cách theo delimiter đã chọn.
+
+Text phân cách:
 
 - Auto-detect
 - Dấu phẩy `,`

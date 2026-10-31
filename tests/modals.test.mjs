@@ -332,6 +332,34 @@ test("folder pickers only list configured source folders", async () => {
   assert.equal(folderValues.some(value => value.startsWith("_agent") || value.startsWith("notes")), false);
 });
 
+test("import exposes standard format templates and a file picker", async () => {
+  const { commands, lastModal } = await boot();
+  await commands["import-export"].callback();
+  const modal = lastModal();
+  buttonByText(modal.contentEl, "Import Cards").onclick();
+  const format = modal.contentEl.querySelector(".pdl-import-format");
+  assert.ok(format, "format template selector rendered");
+  format.value = "basic";
+  format.onchange();
+  const textarea = modal.contentEl.querySelectorAll("textarea")[0];
+  assert.match(textarea.value, /Question,Answer,Type,Explanation,Tags/);
+  assert.doesNotMatch(textarea.value, /Choice A/, "basic template has no MCQ columns");
+  const delimiter = modal.contentEl.querySelector(".pdl-import-delimiter");
+  delimiter.value = "semicolon";
+  delimiter.onchange();
+  assert.match(textarea.value, /Question;Answer;Type/);
+  format.value = "mcq";
+  format.onchange();
+  assert.match(textarea.value, /multiple-choice/);
+  assert.match(textarea.value, /Choice A/);
+  assert.match(textOf(modal.contentEl), /0 cards ready/);
+  assert.ok(buttonByText(modal.contentEl, "Choose file"), "external file picker rendered");
+  const fileInput = modal.contentEl.querySelectorAll("input").find(input => input.attrs.type === "file");
+  assert.match(fileInput.attrs.accept, /\.md/);
+  assert.match(fileInput.attrs.accept, /\.xlsx/);
+  assert.match(textOf(modal.contentEl), /Supported: CSV, TSV, TXT, JSON, MD, XLSX/);
+});
+
 test("risk 10: import into a note without a deck creates a linked deck", async () => {
   const { commands, lastModal, plugin } = await boot();
   await commands["import-export"].callback();

@@ -1405,6 +1405,7 @@
   text-transform: uppercase;
   cursor: pointer;
 }
+
 .pdl-batch-list {
   max-height: 300px;
   margin: 6px 0 12px;
@@ -1480,6 +1481,43 @@
 /* ---- Import target note ---- */
 .pdl-import-tabs {
   margin: 16px 0;
+}
+.pdl-import-format-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  font-size: 9px;
+  font-weight: 700;
+}
+.pdl-import-file-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 4px 0 8px;
+}
+.pdl-import-file-hint {
+  flex-basis: 100%;
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.pdl-import-file-row button {
+  min-height: 34px;
+  padding: 0 10px;
+}
+.pdl-import-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  font-size: 9px;
+  font-weight: 700;
 }
 .pdl-import-target,
 .pdl-import-delimiter {
@@ -1727,19 +1765,55 @@
   border: 1px solid var(--ink);
   background: #3157ff;
 }
-.pdl-heatmap-shape-preview.is-rounded { border-radius: 3px; }
-.pdl-heatmap-shape-preview.is-circle { border-radius: 50%; }
-.pdl-heatmap-shape-preview.is-diamond { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
-.pdl-heatmap-shape-preview.is-hexagon { clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%); }
+.pdl-heatmap-shape-preview.is-rounded-rectangle {
+  width: 15px;
+  height: 9px;
+  border-radius: 4px;
+}
+.pdl-heatmap-shape-preview.is-rounded-square {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+}
+.pdl-heatmap-shape-preview.is-heart {
+  width: 14px;
+  height: 13px;
+  border: 0;
+  -webkit-mask: var(--pdl-heart-mask) center / contain no-repeat;
+  mask: var(--pdl-heart-mask) center / contain no-repeat;
+}
 
-.pdl-dashboard-heatmap.pdl-heatmap-shape-rounded .pdl-heatmap-swatch,
-.pdl-dashboard-heatmap.pdl-heatmap-shape-rounded .pdl-heatmap-cell { border-radius: 3px; }
-.pdl-dashboard-heatmap.pdl-heatmap-shape-circle .pdl-heatmap-swatch,
-.pdl-dashboard-heatmap.pdl-heatmap-shape-circle .pdl-heatmap-cell { border-radius: 50%; }
-.pdl-dashboard-heatmap.pdl-heatmap-shape-diamond .pdl-heatmap-swatch,
-.pdl-dashboard-heatmap.pdl-heatmap-shape-diamond .pdl-heatmap-cell { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
-.pdl-dashboard-heatmap.pdl-heatmap-shape-hexagon .pdl-heatmap-swatch,
-.pdl-dashboard-heatmap.pdl-heatmap-shape-hexagon .pdl-heatmap-cell { clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%); }
+.pdl-dashboard-heatmap,
+.pdl-heatmap-shape-preview {
+  --pdl-heart-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21s-7-4.35-9.5-8.5C.5 9 2.5 5.5 6 5.5c2 0 3.5 1 4.5 2.5C12 6.5 13.5 5.5 15.5 5.5c3.5 0 5.5 3.5 3.5 7C19 16.65 12 21 12 21z'/%3E%3C/svg%3E");
+}
+
+.pdl-dashboard-heatmap.pdl-heatmap-shape-rounded-rectangle .pdl-heatmap-cell {
+  height: 12px;
+  min-height: 12px;
+  border-radius: 5px;
+  align-self: center;
+}
+.pdl-dashboard-heatmap.pdl-heatmap-shape-rounded-rectangle .pdl-heatmap-swatch {
+  width: 18px;
+  height: 11px;
+  border-radius: 5px;
+}
+.pdl-dashboard-heatmap.pdl-heatmap-shape-rounded-square .pdl-heatmap-cell,
+.pdl-dashboard-heatmap.pdl-heatmap-shape-rounded-square .pdl-heatmap-swatch {
+  border-radius: 5px;
+}
+.pdl-dashboard-heatmap.pdl-heatmap-shape-heart .pdl-heatmap-cell,
+.pdl-dashboard-heatmap.pdl-heatmap-shape-heart .pdl-heatmap-swatch {
+  border: 0;
+  border-radius: 0;
+  -webkit-mask: var(--pdl-heart-mask) center / contain no-repeat;
+  mask: var(--pdl-heart-mask) center / contain no-repeat;
+}
+.pdl-dashboard-heatmap.pdl-heatmap-shape-heart .pdl-heatmap-swatch {
+  width: 14px;
+  height: 14px;
+}
 .pdl-dashboard-heatmap.pdl-heatmap-palette-green .pdl-heatmap-swatch.level-1,
 .pdl-dashboard-heatmap.pdl-heatmap-palette-green .pdl-heatmap-cell.level-1 { background: #b7e4c7; }
 .pdl-dashboard-heatmap.pdl-heatmap-palette-green .pdl-heatmap-swatch.level-2,
@@ -1912,23 +1986,41 @@
   color: #a61b2b;
 }
 .pdl-flashcard .pdl-cloze-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin-top: 12px;
 }
-.pdl-flashcard .pdl-cloze-actions .pdl-reveal {
-  width: auto;
+.pdl-flashcard .pdl-cloze-actions .pdl-reveal,
+.pdl-flashcard .pdl-cloze-actions .pdl-cloze-reveal {
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
   margin: 0;
+  padding: 0 12px;
+  justify-content: center;
 }
 .pdl-flashcard .pdl-cloze-reveal {
-  min-height: 46px;
-  padding: 0 16px;
   border: 2px solid var(--ink);
   border-radius: 0;
   background: var(--white);
   color: var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+  font-family: var(--font-monospace);
+  font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: pointer;
+}
+.pdl-flashcard .pdl-cloze-reveal:active {
+  transform: translate(4px, 4px);
+  box-shadow: none;
+}
+@media (max-width: 520px) {
+  .pdl-flashcard .pdl-cloze-actions {
+    grid-template-columns: 1fr;
+  }
 }
 .pdl-flashcard .pdl-cloze-reveal:hover {
   background: var(--paper);

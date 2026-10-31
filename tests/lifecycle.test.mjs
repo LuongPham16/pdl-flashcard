@@ -61,7 +61,7 @@ test("onload defaults to English, five decks per page and current models", async
   assert.equal(plugin.settings.defaultClozeCount, 3);
   assert.equal(plugin.settings.defaultReverseCards, false);
   assert.equal(plugin.settings.heatmapPalette, "blue");
-  assert.equal(plugin.settings.heatmapShape, "square");
+  assert.equal(plugin.settings.heatmapShape, "rounded-rectangle");
   assert.deepEqual(plugin.settings.ai.models, {
     openai: "gpt-6-luna",
     gemini: "gemini-3.8-flash",
@@ -99,7 +99,7 @@ test("the settings tab renders and wires the language and page-size controls", a
   const pageSize = stub.Setting.instances.find(setting => setting.controls.some(control => control.kind === "slider" && control.api.setLimits));
   assert.ok(pageSize?.onChange, "deck page-size slider has a change handler");
   await pageSize.onChange(12);
-  assert.equal(plugin.settings.decksPerPage, 12);
+  assert.equal(plugin.settings.decksPerPage, 5, "page size is capped at 5");
 });
 
 test("onload upgrades built-in prompts with the formatting rules but leaves custom prompts alone", async () => {
@@ -116,6 +116,40 @@ test("onload upgrades built-in prompts with the formatting rules but leaves cust
   assert.match(builtIn.template, /Old default prompt\./);
   assert.match(builtIn.template, /Output formatting rules/, "formatting rules appended");
   assert.equal(custom.template, "Only my words.", "custom prompt untouched");
+});
+
+test("onload replaces the old shipped default prompt with the any-subject prompt", async () => {
+  const { plugin } = await boot({
+    saved: {
+      schemaVersion: 3,
+      aiPrompts: [{
+        id: "default",
+        name: "Default (Active Recall & Deep Understanding)",
+        template: "Create flashcards from the note below. Test active recall and conceptual understanding. Avoid vague questions."
+      }]
+    }
+  });
+  const prompt = plugin.settings.aiPrompts[0];
+  assert.match(prompt.name, /Any Subject & Audience/);
+  assert.match(prompt.template, /Do not assume the reader is a software developer/);
+  assert.doesNotMatch(prompt.template, /Avoid vague questions\.$/);
+});
+
+test("onload removes the old built-in DevOps prompt but keeps custom prompts", async () => {
+  const { plugin } = await boot({
+    saved: {
+      schemaVersion: 3,
+      selectedPromptId: "technical",
+      aiPrompts: [
+        { id: "default", name: "Default", template: "Default prompt." },
+        { id: "technical", name: "Technical & DevOps (Commands & Code Cloze)", template: "Old DevOps prompt." },
+        { id: "mine", name: "My prompt", template: "Custom." }
+      ]
+    }
+  });
+  assert.equal(plugin.settings.aiPrompts.some(prompt => prompt.id === "technical"), false);
+  assert.equal(plugin.settings.aiPrompts.some(prompt => prompt.id === "mine"), true);
+  assert.equal(plugin.settings.selectedPromptId, "default");
 });
 
 test("onload does not append the formatting rules twice", async () => {

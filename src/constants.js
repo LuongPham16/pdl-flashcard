@@ -20,22 +20,20 @@ const AI_FORMAT_RULES = `Output formatting rules (important):
 const DEFAULT_AI_PROMPTS = [
   {
     id: "default",
-    name: "Default (Active Recall & Deep Understanding)",
-    template: `Create flashcards from the note below, using only information present in the note. Write questions in the same language as the source note. Return valid JSON format ONLY with shape {"cards":[...]}.
+    name: "Default (Any Subject & Audience)",
+    template: `Create active-recall flashcards from the note below. The note may cover any subject: science, history, language, business, law, health, arts, personal knowledge, or technical work. Write in the same language as the note. Return valid JSON format ONLY with shape {"cards":[...]}.
+
+Audience & domain:
+- Infer the subject and the likely audience/difficulty from the note. Do not assume the reader is a software developer or that the topic is technical.
+- Use the note's own terminology, examples and level of detail. Do not add outside facts or invent examples.
+- If the note is technical, keep technical precision. If it is general, explain in plain language for an interested adult learner.
+- Avoid unexplained acronyms and jargon that the note does not define.
+
+Card rules:
 - Create {basicCount} basic cards with type="basic", question, answer, explanation, tags (array of string keywords).
 - Create {mcqCount} multiple-choice cards with type="multiple-choice", question, exactly four string choices, answer matching one choice, explanation, tags.
 - Create {clozeCount} cloze deletion cards with type="cloze", question containing {{c1::key term}} or ==key term==, answer containing the key term, explanation, tags.
-Test active recall and conceptual understanding. Avoid vague questions.
-
-${AI_FORMAT_RULES}`
-  },
-  {
-    id: "technical",
-    name: "Technical & DevOps (Commands & Code Cloze)",
-    template: `Create technical flashcards from the note below, focusing on command line syntax, architecture concepts, code snippets, and configuration keys. Write in the same language as the source note. Return valid JSON ONLY with shape {"cards":[...]}.
-- Create {basicCount} basic cards (type="basic", question, answer, explanation, tags).
-- Create {mcqCount} multiple-choice cards (type="multiple-choice", question, 4 choices, answer, explanation, tags).
-- Create {clozeCount} cloze deletion cards (type="cloze", question with {{c1::code or command}}, answer, explanation, tags).
+- Test active recall and conceptual understanding, not trivia or yes/no questions. One idea per card; avoid vague or overly broad questions.
 
 ${AI_FORMAT_RULES}`
   },
@@ -68,7 +66,7 @@ const DEFAULTS = {
   defaultClozeCount: 3,
   defaultReverseCards: false,
   heatmapPalette: "blue",
-  heatmapShape: "square",
+  heatmapShape: "rounded-rectangle",
   ttsVoice: "",
   ttsRate: 1,
   outputFolder: "06 - Flashcards",

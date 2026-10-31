@@ -1,6 +1,6 @@
 {
   "name": "pdl-flashcard",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "AI-assisted flashcards inside Obsidian: generate decks from notes or highlighted text, review with adaptive scheduling.",
   "main": "main.js",
   "type": "module",
@@ -35,5 +35,8 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "read-excel-file": "^9.3.14"
   }
 }

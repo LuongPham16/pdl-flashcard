@@ -104,8 +104,11 @@ test("clicking the heatmap legend cycles and persists the palette", async () => 
 
   const shape = view.containerEl.querySelector(".pdl-heatmap-shape-toggle");
   await shape.onclick({ stopPropagation() {} });
-  assert.equal(plugin.settings.heatmapShape, "rounded");
-  assert.equal(view.containerEl.querySelector(".pdl-dashboard-heatmap").classList.contains("pdl-heatmap-shape-rounded"), true);
+  assert.equal(plugin.settings.heatmapShape, "rounded-square");
+  assert.equal(view.containerEl.querySelector(".pdl-dashboard-heatmap").classList.contains("pdl-heatmap-shape-rounded-square"), true);
+  await shape.onclick({ stopPropagation() {} });
+  assert.equal(plugin.settings.heatmapShape, "heart");
+  assert.equal(view.containerEl.querySelector(".pdl-dashboard-heatmap").classList.contains("pdl-heatmap-shape-heart"), true);
   assert.equal(plugin.settings.heatmapPalette, "green", "shape click does not change color");
 });
 
@@ -341,7 +344,7 @@ test("a basic answer shows the answer label exactly once", async () => {
   assert.equal(view.containerEl.querySelectorAll(".pdl-card-result").length, 0, "no empty result banner");
 });
 
-test("a multiple-choice answer keeps its status banner and answer heading", async () => {
+test("a multiple-choice answer keeps its status banner and one answer heading", async () => {
   const { view } = await makeView();
   view.session = [cardObj("mcq", { type: "multiple-choice", choices: ["A", "B", "C", "D"], answer: "A" })];
   view.index = 0;
@@ -354,11 +357,12 @@ test("a multiple-choice answer keeps its status banner and answer heading", asyn
   assert.ok(result, "result banner rendered");
   assert.equal(textOf(result.querySelector(".pdl-card-result-status")), "NOT QUITE");
   const rows = result.querySelectorAll(".pdl-mcq-row");
-  assert.equal(rows.length, 2, "one row for the choice and one for the answer");
+  assert.equal(rows.length, 1, "the banner does not duplicate the correct answer shown below");
   assert.equal(textOf(rows[0]), "Your choice B");
   assert.equal(rows[0].querySelector(".pdl-mcq-value").classList.contains("is-wrong"), true);
-  assert.equal(textOf(rows[1]), "Correct answer A");
-  assert.equal(rows[1].querySelector(".pdl-mcq-value").classList.contains("is-correct"), true);
+  const labels = view.containerEl.querySelectorAll(".pdl-section-label")
+    .filter(label => textOf(label) === "CORRECT ANSWER");
+  assert.equal(labels.length, 1, "correct answer heading appears exactly once");
 });
 
 test("cloze cards let the user type the missing word and check it", async () => {
@@ -440,14 +444,14 @@ test("decksPerPage controls how many decks the library shows", async () => {
     files[`06 - Flashcards/deck-${String(i).padStart(2, "0")}.md`] =
       `\`\`\`pdl-flashcards\n${JSON.stringify({ sourcePath: "inbox/src.md", cards: [{ id: `d${i}`, question: `Q${i}`, answer: `A${i}` }] })}\n\`\`\``;
   }
-  const ten = await makeView({ decksPerPage: 10 }, files);
-  assert.equal(ten.view.containerEl.querySelectorAll(".pdl-topic-row").length, 10);
-  const jump = ten.view.containerEl.querySelector(".pdl-page-input");
+  const capped = await makeView({ decksPerPage: 10 }, files);
+  assert.equal(capped.view.containerEl.querySelectorAll(".pdl-topic-row").length, 5, "page size is capped at 5");
+  const jump = capped.view.containerEl.querySelector(".pdl-page-input");
   assert.equal(jump.value, "1");
-  jump.value = "2";
+  jump.value = "3";
   jump.onchange();
-  assert.equal(ten.view.deckPage, 1);
-  assert.equal(ten.view.containerEl.querySelectorAll(".pdl-topic-row").length, 2, "jump goes straight to the last page");
+  assert.equal(capped.view.deckPage, 2);
+  assert.equal(capped.view.containerEl.querySelectorAll(".pdl-topic-row").length, 2, "jump goes straight to the last page");
 
   const five = await makeView({}, files);
   assert.equal(five.view.containerEl.querySelectorAll(".pdl-topic-row").length, 5, "default stays 5");
