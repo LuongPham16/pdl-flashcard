@@ -61,7 +61,7 @@ test("onload defaults to English, five decks per page and current models", async
   assert.equal(plugin.settings.defaultClozeCount, 3);
   assert.equal(plugin.settings.defaultReverseCards, false);
   assert.equal(plugin.settings.heatmapPalette, "blue");
-  assert.equal(plugin.settings.heatmapShape, "rounded-rectangle");
+  assert.equal(plugin.settings.heatmapShape, "rounded-square");
   assert.deepEqual(plugin.settings.ai.models, {
     openai: "gpt-6-luna",
     gemini: "gemini-3.8-flash",

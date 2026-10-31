@@ -16,6 +16,7 @@ import { FlashcardExportImportModal } from "./modals/import-export.js";
 import { FlashcardStatisticsModal } from "./modals/statistics.js";
 import { FlashcardManagerModal } from "./modals/manager.js";
 import { FlashcardStudioModal } from "./modals/studio.js";
+import { FlashcardDayModal } from "./modals/day.js";
 
 /**
  * Georgia has no Vietnamese glyphs on Windows. Set the reading font inline too so
@@ -247,13 +248,29 @@ export class PDLFlashcardView extends ItemView {
     const validIds = new Set(this.cards.map(card => card.id));
     const reviews = (this.plugin.settings.reviews || []).filter(review => validIds.has(review.cardId));
     const counts = new Map(); reviews.forEach(review => { const key = dateKey(review.at); counts.set(key, (counts.get(key) || 0) + 1); });
-    const today = new Date(); today.setHours(0,0,0,0); const end = new Date(today); end.setDate(end.getDate() + (6 - end.getDay()));
-    const start = new Date(end); start.setDate(start.getDate() - 181);
-    const days = []; for (let i=0;i<182;i++) { const date=new Date(start); date.setDate(start.getDate()+i); const key=dateKey(date.getTime()); days.push({ date, key, count:counts.get(key)||0, future:date>today }); }
-    const total = days.reduce((sum,day)=>sum+day.count,0);
-    const active = days.filter(day=>day.count>0).length;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const thisYear = today.getFullYear();
+    const reviewYears = reviews.map(review => new Date(review.at).getFullYear()).filter(value => Number.isFinite(value));
+    const minYear = Math.min(thisYear, ...reviewYears);
+    let year = Number.isFinite(this.heatmapYear) ? this.heatmapYear : thisYear;
+    year = Math.max(minYear, Math.min(thisYear, year));
+    this.heatmapYear = year;
+    const yearStart = new Date(year, 0, 1);
+    const offset = (yearStart.getDay() + 6) % 7;
+    const daysInYear = Math.round((Date.UTC(year, 11, 31) - Date.UTC(year, 0, 1)) / 86400000) + 1;
+    const weeks = Math.ceil((offset + daysInYear) / 7);
+    const gridStart = new Date(yearStart); gridStart.setDate(yearStart.getDate() - offset);
+    const days = [];
+    for (let i = 0; i < weeks * 7; i++) {
+      const date = new Date(gridStart); date.setDate(gridStart.getDate() + i);
+      const inYear = date.getFullYear() === year;
+      const key = dateKey(date.getTime());
+      days.push({ date, key, count: inYear ? (counts.get(key) || 0) : 0, future: date > today, empty: !inYear });
+    }
+    const total = days.reduce((sum, day) => sum + day.count, 0);
+    const active = days.filter(day => !day.empty && day.count > 0).length;
     const section = root.createDiv({ cls:"pdl-dashboard-heatmap" });
-    const head = section.createDiv({ cls:"pdl-heatmap-head" }); const copy=head.createDiv(); copy.createEl("h3",{text:L("Review Consistency", "Mức độ đều đặn")}); copy.createEl("p",{text:L(`${formatCount(total)} reviews across ${active} active days · last 26 weeks`, `${formatCount(total)} lượt ôn trong ${active} ngày · 26 tuần qua`)});
+    const head = section.createDiv({ cls:"pdl-heatmap-head" }); const copy=head.createDiv(); copy.createEl("h3",{text:L("Review Consistency", "Mức độ đều đặn")}); copy.createEl("p",{text:L(`${formatCount(total)} reviews across ${active} active days · ${year}`, `${formatCount(total)} lượt ôn trong ${active} ngày · năm ${year}`)});
     const palettes = ["blue", "green", "orange", "purple"];
     const paletteNames = {
       blue: L("Blue", "Xanh dương"),
@@ -265,13 +282,12 @@ export class PDLFlashcardView extends ItemView {
     section.addClass(`pdl-heatmap-palette-${palette}`);
     const legend=head.createDiv({cls:"pdl-heatmap-legend",attr:{"aria-label":L("Activity intensity legend", "Chú giải mức độ hoạt động"), role:"button", tabindex:"0"}});
     legend.createSpan({text:L("Less", "Ít")}); [0,1,2,3,4].forEach(level=>legend.createSpan({cls:`pdl-heatmap-swatch level-${level}`})); legend.createSpan({text:L("More", "Nhiều")});
-    const shapes = ["rounded-rectangle", "rounded-square", "heart"];
+    const shapes = ["rounded-square", "heart"];
     const shapeNames = {
-      "rounded-rectangle": L("Rounded rectangle", "Chữ nhật bo tròn"),
       "rounded-square": L("Rounded square", "Vuông bo tròn"),
       heart: L("Heart", "Trái tim")
     };
-    let shape = shapes.includes(this.plugin.settings.heatmapShape) ? this.plugin.settings.heatmapShape : "rounded-rectangle";
+    let shape = shapes.includes(this.plugin.settings.heatmapShape) ? this.plugin.settings.heatmapShape : "rounded-square";
     section.addClass(`pdl-heatmap-shape-${shape}`);
     const shapeToggle = legend.createSpan({ cls: "pdl-heatmap-shape-toggle", attr: { role: "button", tabindex: "0" } });
     const shapePreview = shapeToggle.createSpan({ cls: `pdl-heatmap-shape-preview is-${shape}` });
@@ -320,11 +336,38 @@ export class PDLFlashcardView extends ItemView {
         return cycleShape();
       }
     };
-    const body=section.createDiv({cls:"pdl-heatmap-body"}); const labels=body.createDiv({cls:"pdl-heatmap-weekdays"});
-    const weekdayLabels = Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(locale(), { weekday: "short" }).format(new Date(2024, 0, 7 + index)));
-    weekdayLabels.forEach((label,index)=>labels.createSpan({text:index%2?label:""}));
-    const grid=body.createDiv({cls:"pdl-heatmap-grid",attr:{role:"grid","aria-label":L("Review activity for the last 26 weeks", "Hoạt động ôn tập 26 tuần qua")}});
-    days.forEach(day=>{const level=day.future?0:day.count===0?0:day.count===1?1:day.count<=4?2:day.count<=9?3:4;const dateLabel=new Intl.DateTimeFormat(locale(),{weekday:"long",month:"long",day:"numeric",year:"numeric"}).format(day.date);const label=L(`${dateLabel}: ${day.count} ${day.count===1?"review":"reviews"}`, `${dateLabel}: ${day.count} lượt ôn`);grid.createSpan({cls:`pdl-heatmap-cell level-${level}${day.future?" is-future":""}`,attr:{role:"gridcell",tabindex:day.future?"-1":"0","aria-label":label,title:label}});});
+    section.setCssProps({ "--pdl-weeks": String(weeks) });
+    const body=section.createDiv({cls:"pdl-heatmap-body"});
+    const labels=body.createDiv({cls:"pdl-heatmap-weekdays"});
+    const weekdayLabels = Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(locale(), { weekday: "short" }).format(new Date(2024, 0, 1 + index)));
+    weekdayLabels.forEach(label => labels.createSpan({ text: label }));
+    const grid=body.createDiv({cls:"pdl-heatmap-grid",attr:{role:"grid","aria-label":L(`Review activity for ${year}`, `Hoạt động ôn tập năm ${year}`)}});
+    days.forEach(day=>{
+      if (day.empty) { grid.createSpan({ cls: "pdl-heatmap-cell is-empty", attr: { "aria-hidden": "true" } }); return; }
+      const level=day.future?0:day.count===0?0:day.count===1?1:day.count<=4?2:day.count<=9?3:4;
+      const dateLabel=new Intl.DateTimeFormat(locale(),{weekday:"long",month:"long",day:"numeric",year:"numeric"}).format(day.date);
+      const label=L(`${dateLabel}: ${day.count} ${day.count===1?"review":"reviews"}`, `${dateLabel}: ${day.count} lượt ôn`);
+      const cell=grid.createSpan({cls:`pdl-heatmap-cell level-${level}${day.future?" is-future":""}`,attr:{role:"gridcell",tabindex:day.future?"-1":"0","aria-label":label,title:label}});
+      if (!day.future) {
+        cell.onclick = () => new FlashcardDayModal(this.app, this.plugin, day.key, this.cards).open();
+        cell.onkeydown = event => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            new FlashcardDayModal(this.app, this.plugin, day.key, this.cards).open();
+          }
+        };
+      }
+    });
+    const footer=section.createDiv({cls:"pdl-heatmap-footer"});
+    const previous=footer.createEl("button",{cls:"pdl-heatmap-year-nav",attr:{"aria-label":L("Previous year","Năm trước")}});
+    setIcon(previous,"chevron-left");
+    previous.disabled = year <= minYear;
+    previous.onclick = () => { if (year > minYear) { this.heatmapYear = year - 1; this.renderDashboard(); } };
+    footer.createEl("strong",{cls:"pdl-heatmap-year",text:String(year)});
+    const next=footer.createEl("button",{cls:"pdl-heatmap-year-nav",attr:{"aria-label":L("Next year","Năm sau")}});
+    setIcon(next,"chevron-right");
+    next.disabled = year >= thisYear;
+    next.onclick = () => { if (year < thisYear) { this.heatmapYear = year + 1; this.renderDashboard(); } };
   }
 
   renderRows(list) {

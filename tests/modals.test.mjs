@@ -70,19 +70,38 @@ test("manager lists cards, searches, filters and paginates", async () => {
   assert.match(textOf(modal.contentEl), /No matching flashcards/);
 });
 
+test("manager filters by deck and tag", async () => {
+  const { app, commands, lastModal } = await boot();
+  seedDeck(app, "biology", [{ id: "bio", question: "Cell?", answer: "Unit", tags: ["biology"] }]);
+  seedDeck(app, "history", [{ id: "his", question: "Empire?", answer: "Rome", tags: ["history"] }]);
+  await commands["open-manager"].callback();
+  const modal = lastModal();
+  assert.ok(modal.contentEl.querySelector(".pdl-manager-deck"), "deck filter rendered");
+  assert.ok(modal.contentEl.querySelector(".pdl-manager-tag"), "tag filter rendered");
+
+  modal.deck = `${OUTPUT}/history.md`;
+  modal.renderResults();
+  assert.deepEqual(modal.getFiltered().map(card => card.id), ["his"]);
+
+  modal.deck = "all";
+  modal.tag = "biology";
+  modal.renderResults();
+  assert.deepEqual(modal.getFiltered().map(card => card.id), ["bio"]);
+});
+
 test("manager suspend button toggles availability and reloads the row", async () => {
   const { app, commands, lastModal, plugin } = await boot();
   seedDeck(app, "deck", basicCards("c", 2));
   await commands["open-manager"].callback();
   const modal = lastModal();
   const card = (await plugin.getCards()).find(item => item.id === "c0");
-  const suspend = buttonByLabel(modal.contentEl, `Suspend ${card.question}`);
+  const suspend = buttonByLabel(modal.contentEl, "Suspend");
   assert.ok(suspend, "suspend action rendered");
   await suspend.onclick();
   assert.equal(plugin.settings.schedule.c0.suspended, true);
   assert.match(textOf(modal.contentEl), /SUSPENDED/);
 
-  const unsuspend = buttonByLabel(modal.contentEl, `Unsuspend ${card.question}`);
+  const unsuspend = buttonByLabel(modal.contentEl, "Unsuspend");
   await unsuspend.onclick();
   assert.equal(plugin.settings.schedule.c0.suspended, false);
 });
@@ -93,11 +112,11 @@ test("manager delete and edit actions open their dialogs", async () => {
   await commands["open-manager"].callback();
   const modal = lastModal();
   const card = (await plugin.getCards())[0];
-  buttonByLabel(modal.contentEl, `Edit ${card.question}`).onclick();
+  buttonByLabel(modal.contentEl, "Edit").onclick();
   assert.ok(lastModal().values, "edit dialog opened with values");
   assert.equal(lastModal().values.question, card.question);
 
-  buttonByLabel(modal.contentEl, `Delete ${card.question}`).onclick();
+  buttonByLabel(modal.contentEl, "Delete").onclick();
   assert.match(textOf(lastModal().contentEl), /Delete this flashcard\?/);
 });
 
@@ -108,7 +127,7 @@ test("edit dialog can insert an image from the vault", async () => {
   await commands["open-manager"].callback();
   const manager = lastModal();
   const card = (await plugin.getCards())[0];
-  buttonByLabel(manager.contentEl, `Edit ${card.question}`).onclick();
+  buttonByLabel(manager.contentEl, "Edit").onclick();
   const edit = lastModal();
   edit.inputs.question.value = "Before image";
   const insert = edit.contentEl.querySelector(".pdl-insert-image");
@@ -149,6 +168,39 @@ test("statistics computes KPIs from cards, schedules and reviews", async () => {
   assert.match(textOf(modal.contentEl), /50%/);
 });
 
+test("statistics paginates deck performance and lapsed cards", async () => {
+  const { app, commands, lastModal, plugin } = await boot();
+  const lapsed = Array.from({ length: 7 }, (_, index) => ({
+    id: `lapsed-${index}`,
+    question: `Lapsed ${index}`,
+    answer: "A"
+  }));
+  seedDeck(app, "lapses", lapsed);
+  for (let index = 0; index < 7; index++) {
+    seedDeck(app, `extra-${index}`, [{ id: `extra-${index}`, question: `Deck ${index}`, answer: "A" }]);
+  }
+  plugin.settings.schedule = Object.fromEntries(lapsed.map(card => [card.id, { interval: 1, due: 0, lapses: 3, reps: 3 }]));
+  await commands["open-statistics"].callback();
+  const modal = lastModal();
+  const deckRows = modal.contentEl.querySelectorAll(".pdl-stats-deck-row")
+    .filter(row => !row.classList.contains("is-header"));
+  assert.equal(deckRows.length, 6, "six decks on the first page");
+  assert.match(textOf(modal.contentEl), /Page 1 of 2/);
+
+  const deckPager = modal.contentEl.querySelectorAll(".pdl-stats-pager")[0];
+  buttonByText(deckPager, "Next").onclick();
+  const secondDeckRows = modal.contentEl.querySelectorAll(".pdl-stats-deck-row")
+    .filter(row => !row.classList.contains("is-header"));
+  assert.equal(secondDeckRows.length, 2, "remaining decks on the second page");
+  assert.match(textOf(modal.contentEl), /Page 2 of 2/);
+
+  const hardRows = modal.contentEl.querySelectorAll(".pdl-hard-card");
+  assert.equal(hardRows.length, 5, "five lapsed cards on the first page");
+  const hardPager = modal.contentEl.querySelectorAll(".pdl-stats-pager")[1];
+  buttonByText(hardPager, "Next").onclick();
+  assert.equal(modal.contentEl.querySelectorAll(".pdl-hard-card").length, 2);
+});
+
 test("statistics range buttons re-render the activity window", async () => {
   const { commands, lastModal } = await boot();
   await commands["open-statistics"].callback();
@@ -165,7 +217,7 @@ test("statistics edit button opens the card editor", async () => {
   plugin.settings.schedule = { bad: { interval: 1, due: 0, lapses: 3, reps: 3 } };
   await commands["open-statistics"].callback();
   const modal = lastModal();
-  buttonByLabel(modal.contentEl, "Edit Hard card").onclick();
+  buttonByLabel(modal.contentEl, "Edit").onclick();
   assert.equal(lastModal().values.question, "Hard card");
 });
 

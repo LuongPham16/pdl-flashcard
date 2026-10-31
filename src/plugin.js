@@ -51,14 +51,15 @@ class PDLFlashcardPlugin extends Plugin {
     const heatmapShapeAliases = {
       square: "rounded-square",
       rounded: "rounded-square",
+      "rounded-rectangle": "rounded-square",
+      hexagon: "rounded-square",
       circle: "heart",
-      diamond: "heart",
-      hexagon: "rounded-rectangle"
+      diamond: "heart"
     };
     this.settings.heatmapShape = heatmapShapeAliases[this.settings.heatmapShape]
-      || (["rounded-rectangle", "rounded-square", "heart"].includes(this.settings.heatmapShape)
+      || (["rounded-square", "heart"].includes(this.settings.heatmapShape)
         ? this.settings.heatmapShape
-        : "rounded-rectangle");
+        : "rounded-square");
     this.settings.ttsVoice = String(this.settings.ttsVoice || "");
     this.settings.ttsRate = Math.max(0.5, Math.min(2, Number(this.settings.ttsRate) || 1));
 

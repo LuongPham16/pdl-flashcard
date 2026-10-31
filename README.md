@@ -4,7 +4,7 @@
 highlighted passage — into editable flashcard decks, then review them with adaptive
 spaced repetition.
 
-> **Version 1.0.6** · requires Obsidian **1.13.0+** · desktop and mobile · submitted to
+> **Version 1.0.7** · requires Obsidian **1.13.0+** · desktop and mobile · submitted to
 > the Obsidian community plugin directory.
 
 ## Highlights
@@ -123,13 +123,18 @@ when you actually press **Import Cards**.
 
 ## Dashboard and tracking
 
-- Due / today / mature counts, streak and a 26-week activity heatmap.
+- Due / today / mature counts, streak and a calendar-year activity heatmap
+  (January 1–December 31).
 - Click the *Less … More* legend to change heatmap colours; click the small shape icon to
-  change cells between rounded rectangle, rounded square and heart.
-- Deck library with configurable page size and first / previous / page-jump / next / last
-  navigation.
-- Statistics for retention, rating distribution, workload and hardest cards.
-- Card manager with search, type filter, edit, suspend and delete.
+  change cells between rounded square and heart.
+- Use the **← / →** arrows under the heatmap to move between years.
+- Click any day to open **Review History**: reviews, cards, decks, active time, ratings,
+  search and deck/rating filters; click a card for a read-only detail view.
+- Deck library with a maximum of 5 decks per page and first / previous / page-jump / next /
+  last navigation.
+- Statistics for retention, rating distribution, workload and hardest cards; deck and
+  lapsed-card lists are paginated (6 decks and 5 cards per page).
+- Card manager with search, type filter, deck filter, tag filter, edit, suspend and delete.
 
 ## AI providers
 
@@ -248,7 +253,7 @@ npm run deploy       # build + copy using .deploy.json
 ```
 
 The test suite runs against the **built bundle**, so rebuild after changing `src/` or
-`styles.css`. Current suite: **156 tests**.
+`styles.css`. Current suite: **158 tests**.
 
 ### Project layout
 

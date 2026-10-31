@@ -3,7 +3,7 @@
 **PDL Flashcard** giúp bạn tạo và ôn tập flashcard ngay trong Obsidian theo phương pháp
 lặp lại ngắt quãng. Plugin có thể nhờ AI đọc note để soạn thẻ nháp, hoặc bạn tự viết thẻ.
 
-> Phiên bản **1.0.6**. Yêu cầu Obsidian **1.13.0+**. Giao diện hỗ trợ tiếng Anh và tiếng Việt.
+> Phiên bản **1.0.7**. Yêu cầu Obsidian **1.13.0+**. Giao diện hỗ trợ tiếng Anh và tiếng Việt.
 
 ## 1. Cài đặt
 
@@ -114,10 +114,12 @@ Mở dashboard bằng icon brain trên ribbon hoặc command
 ## 6. Dashboard và thống kê
 
 - Thẻ đến hạn, hôm nay, đã thuộc, streak.
-- Heatmap 26 tuần: bấm legend để đổi màu, bấm icon hình để đổi kiểu ô.
-- Thư viện deck: phân trang, nhảy trực tiếp đến trang bất kỳ.
-- **Statistics**: retention, phân bố điểm, tải theo deck, thẻ khó.
-- **Manager**: tìm/lọc/sửa/suspend/xóa thẻ.
+- Heatmap cả năm (1/1–31/12): bấm legend để đổi màu, bấm icon hình để đổi giữa ô vuông bo tròn và trái tim.
+- Dùng mũi tên **← / →** dưới heatmap để chuyển năm.
+- Bấm vào một ngày để mở **Review History**: lượt ôn, thẻ, deck, thời gian, rating; có tìm kiếm và lọc theo deck/rating. Bấm vào thẻ để xem chi tiết (chỉ xem, không sửa).
+- Thư viện deck: tối đa 5 deck/trang, phân trang và nhảy trực tiếp đến trang bất kỳ.
+- **Statistics**: retention, phân bố điểm, tải theo deck, thẻ khó. Danh sách deck và thẻ lỗi được phân trang (6 deck/trang, 5 thẻ/trang).
+- **Manager**: tìm/lọc theo loại thẻ, deck, tag; sửa/suspend/xóa thẻ.
 
 ## 7. Import / Export
 

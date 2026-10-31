@@ -85,11 +85,27 @@ test("dashboard lists decks and the search box filters them", async () => {
   assert.match(textOf(view.containerEl), /No flashcard decks yet|No flashcard decks/);
 });
 
-test("dashboard heatmap renders 26 weeks of cells", async () => {
-  const { app, view } = await makeView();
+test("dashboard heatmap covers January 1 through December 31", async () => {
+  const { app, plugin, view } = await makeView();
   seedDeck(app, "06 - Flashcards/deck.md", [{ id: "a", question: "Q", answer: "A" }]);
   await view.refresh();
-  assert.equal(view.containerEl.querySelectorAll(".pdl-heatmap-cell").length, 182);
+  const year = new Date().getFullYear();
+  const daysInYear = Math.round((Date.UTC(year, 11, 31) - Date.UTC(year, 0, 1)) / 86400000) + 1;
+  const labelled = view.containerEl.querySelectorAll(".pdl-heatmap-cell")
+    .filter(cell => cell.attrs && cell.attrs["aria-label"]);
+  assert.equal(labelled.length, daysInYear, "one clickable cell per day of the calendar year");
+  assert.match(labelled[0].attrs["aria-label"], /January 1/);
+  assert.match(labelled[labelled.length - 1].attrs["aria-label"], /December 31/);
+  assert.equal(view.containerEl.querySelectorAll(".pdl-heatmap-month").length, 0, "month headings removed");
+  assert.match(textOf(view.containerEl.querySelector(".pdl-heatmap-footer")), new RegExp(String(year)));
+
+  plugin.settings.reviews = [{ cardId: "a", grade: 3, at: new Date(year - 1, 5, 1).getTime() }];
+  await view.refresh();
+  const previous = view.containerEl.querySelectorAll(".pdl-heatmap-year-nav")[0];
+  assert.equal(previous.disabled, false, "previous year available");
+  previous.onclick();
+  assert.equal(view.heatmapYear, year - 1);
+  assert.match(textOf(view.containerEl.querySelector(".pdl-heatmap-footer")), new RegExp(String(year - 1)));
 });
 
 test("clicking the heatmap legend cycles and persists the palette", async () => {
@@ -103,12 +119,12 @@ test("clicking the heatmap legend cycles and persists the palette", async () => 
   assert.equal(view.containerEl.querySelector(".pdl-dashboard-heatmap").classList.contains("pdl-heatmap-palette-green"), true);
 
   const shape = view.containerEl.querySelector(".pdl-heatmap-shape-toggle");
-  await shape.onclick({ stopPropagation() {} });
-  assert.equal(plugin.settings.heatmapShape, "rounded-square");
   assert.equal(view.containerEl.querySelector(".pdl-dashboard-heatmap").classList.contains("pdl-heatmap-shape-rounded-square"), true);
   await shape.onclick({ stopPropagation() {} });
   assert.equal(plugin.settings.heatmapShape, "heart");
   assert.equal(view.containerEl.querySelector(".pdl-dashboard-heatmap").classList.contains("pdl-heatmap-shape-heart"), true);
+  await shape.onclick({ stopPropagation() {} });
+  assert.equal(plugin.settings.heatmapShape, "rounded-square");
   assert.equal(plugin.settings.heatmapPalette, "green", "shape click does not change color");
 });
 

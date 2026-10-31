@@ -66,7 +66,7 @@ const DEFAULTS = {
   defaultClozeCount: 3,
   defaultReverseCards: false,
   heatmapPalette: "blue",
-  heatmapShape: "rounded-rectangle",
+  heatmapShape: "rounded-square",
   ttsVoice: "",
   ttsRate: 1,
   outputFolder: "06 - Flashcards",

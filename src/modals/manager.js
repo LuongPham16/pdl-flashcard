@@ -11,7 +11,7 @@ import { FlashcardEditModal, DeleteFlashcardModal } from "./edit.js";
 
 class FlashcardManagerModal extends Modal {
   constructor(app, plugin) {
-    super(app); this.plugin = plugin; this.cards = []; this.query = ""; this.type = "all"; this.page = 0; this.pageSize = 25;
+    super(app); this.plugin = plugin; this.cards = []; this.query = ""; this.type = "all"; this.deck = "all"; this.tag = "all"; this.page = 0; this.pageSize = 25;
   }
 
   async onOpen() {
@@ -44,6 +44,30 @@ class FlashcardManagerModal extends Modal {
     [["all", L("All types", "Tất cả loại")], ["basic", L("Q&A", "Hỏi đáp")], ["multiple-choice", L("Multiple choice", "Trắc nghiệm")], ["cloze", L("Cloze deletion", "Điền khuyết")]].forEach(([value, label]) => this.filter.createEl("option", { text: label, attr: { value } }));
     this.filter.value = this.type;
     this.filter.onchange = () => { this.type = this.filter.value; this.page = 0; this.renderResults(); };
+
+    const decks = new Map();
+    const tags = new Set();
+    this.cards.forEach(card => {
+      if (card.file?.path) decks.set(card.file.path, card.deckTitle || card.file.basename || card.file.path);
+      (card.tags || []).forEach(tag => tags.add(tag));
+    });
+    if (!decks.has(this.deck)) this.deck = "all";
+    if (!tags.has(this.tag)) this.tag = "all";
+
+    this.deckFilter = toolbar.createEl("select", { cls: "pdl-manager-deck", attr: { "aria-label": L("Filter by deck", "Lọc theo deck") } });
+    this.deckFilter.createEl("option", { text: L("All decks", "Tất cả deck"), attr: { value: "all" } });
+    [...decks.entries()].sort((a, b) => a[1].localeCompare(b[1], "vi"))
+      .forEach(([path, title]) => this.deckFilter.createEl("option", { text: title, attr: { value: path } }));
+    this.deckFilter.value = this.deck;
+    this.deckFilter.onchange = () => { this.deck = this.deckFilter.value; this.page = 0; this.renderResults(); };
+
+    this.tagFilter = toolbar.createEl("select", { cls: "pdl-manager-tag", attr: { "aria-label": L("Filter by tag", "Lọc theo tag") } });
+    this.tagFilter.createEl("option", { text: L("All tags", "Tất cả tag"), attr: { value: "all" } });
+    [...tags].sort((a, b) => a.localeCompare(b, "vi"))
+      .forEach(tag => this.tagFilter.createEl("option", { text: `#${tag}`, attr: { value: tag } }));
+    this.tagFilter.value = this.tag;
+    this.tagFilter.onchange = () => { this.tag = this.tagFilter.value; this.page = 0; this.renderResults(); };
+
     const add = toolbar.createEl("button", { cls: "pdl-manager-add", text: L("Create deck", "Tạo deck") });
     setIcon(add.createSpan(), "plus");
     add.onclick = () => new FlashcardStudioModal(this.app, this.plugin).open();
@@ -55,6 +79,8 @@ class FlashcardManagerModal extends Modal {
     const q = this.query.trim().toLowerCase();
     return this.cards.filter(card => {
       if (this.type !== "all" && card.type !== this.type) return false;
+      if (this.deck !== "all" && card.file?.path !== this.deck) return false;
+      if (this.tag !== "all" && !(card.tags || []).includes(this.tag)) return false;
       if (!q) return true;
       const cardTags = (card.tags || []).join(" ");
       return [card.question, card.answer, card.explanation, ...(card.choices || []), cardTags, card.sourcePath, card.deckTitle].join(" ").toLowerCase().includes(q);
@@ -108,13 +134,13 @@ class FlashcardManagerModal extends Modal {
       source.createSpan({ text: card.deckTitle || card.file.basename });
       const actions = row.createDiv({ cls: "pdl-manager-actions", attr: { role: "cell" } });
       const isSuspended = scheduleEntry && scheduleEntry.suspended === true;
-      const suspend = actions.createEl("button", { cls: isSuspended ? "is-active" : "", attr: { "aria-label": isSuspended ? L(`Unsuspend ${card.question}`, `Bỏ tạm dừng ${card.question}`) : L(`Suspend ${card.question}`, `Tạm dừng ${card.question}`), title: isSuspended ? L("Unsuspend", "Bỏ tạm dừng") : L("Suspend", "Tạm dừng") } });
+      const suspend = actions.createEl("button", { cls: isSuspended ? "is-active" : "", attr: { "aria-label": isSuspended ? L("Unsuspend", "Bỏ tạm dừng") : L("Suspend", "Tạm dừng"), title: isSuspended ? L("Unsuspend", "Bỏ tạm dừng") : L("Suspend", "Tạm dừng") } });
       setIcon(suspend, isSuspended ? "play-circle" : "pause-circle");
       suspend.onclick = async () => { await this.plugin.setSuspended(card, !isSuspended); await this.reload(); };
-      const edit = actions.createEl("button", { attr: { "aria-label": L(`Edit ${card.question}`, `Sửa ${card.question}`) } });
+      const edit = actions.createEl("button", { attr: { "aria-label": L("Edit", "Sửa"), title: L("Edit", "Sửa") } });
       setIcon(edit, "pencil");
       edit.onclick = () => new FlashcardEditModal(this.app, this.plugin, card, () => this.reload()).open();
-      const remove = actions.createEl("button", { cls: "is-danger", attr: { "aria-label": L(`Delete ${card.question}`, `Xóa ${card.question}`) } });
+      const remove = actions.createEl("button", { cls: "is-danger", attr: { "aria-label": L("Delete", "Xóa"), title: L("Delete", "Xóa") } });
       setIcon(remove, "trash-2");
       remove.onclick = () => new DeleteFlashcardModal(this.app, this.plugin, card, () => this.reload()).open();
     });

@@ -2,6 +2,37 @@
 
 All notable changes to **PDL Flashcard** are recorded here.
 
+## [1.0.7] - 2026-11-01
+
+### Added
+
+- **Calendar-year heatmap** covering January 1 through December 31, with the year shown
+  below and **← / →** navigation between years that have review data.
+- **Day review history** — click a heatmap day to see reviews, unique cards, decks, active
+  time and rating counts, with search and deck/rating filters.
+- **Read-only card details** — click a card in the day history to see its question, choices,
+  answer, explanation, tags, deck/source, review counts, last review, due date and interval.
+- **Deck and tag filters** in the card manager, alongside the existing type filter.
+
+### Changed
+
+- Statistics **Deck Performance** and **Cards Needing Attention** are paginated instead of
+  scrollable: 6 decks and 5 cards per page, with all decks and all lapsed cards included.
+- The 30-day reviews KPI uses a lavender accent instead of black.
+- Manager action tooltips are short (`Edit`, `Delete`, `Suspend`, `Unsuspend`).
+
+### Fixed
+
+- Heatmap days belong to their real month, so January 31 no longer appears under February.
+- Cloze questions in the day history hide `{{c1::…}}` markers.
+- The redundant pre-reveal hint and duplicate MCQ correct answer remain removed.
+
+### Quality
+
+- **158 regression tests** pass, including year navigation, day/month coverage, manager
+  deck/tag filters and statistics pagination.
+- Requires Obsidian **1.13.0+**.
+
 ## [1.0.6] - 2026-10-31
 
 ### Added
