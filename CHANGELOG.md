@@ -2,27 +2,24 @@
 
 All notable changes to **PDL Flashcard** are recorded here.
 
-## [1.0.4] - 2026-10-31
+## [1.0.5] - 2026-10-31
 
 ### Community review fixes
 
-- Replaced every remaining static/dynamic inline style with CSS classes or Obsidian's
-  `setCssStyles` / `setCssProps`:
-  image picker, source picker, connection status, model fields, reading font,
-  progress bar and statistics charts.
-- Removed unsafe `innerHTML` writes:
-  - card fallbacks and cloze restoration use `sanitizeHTMLToDom`;
-  - Studio previews use `MarkdownRenderer.render`.
-- Settings section headings use `new Setting(containerEl).setName(...).setHeading()`.
-- Removed the default `Mod + Alt + K` hotkey; users can assign their own.
-- Removed `detachLeavesOfType` from `onunload`.
-- Settings model/connection requests use Obsidian `requestUrl` with readable provider
-  errors.
-- Replaced bare timers with `window.setTimeout`, `window.clearTimeout` and
+- Raised `minAppVersion` to **1.13.0**; the plugin uses the `Plugin.settings` field typed
+  in Obsidian 1.13.0, which clears the `no-unsupported-api` error.
+- Removed all static/dynamic inline styles; the UI now uses CSS classes,
+  `setCssStyles` and `setCssProps`.
+- Removed unsafe `innerHTML` writes; card fallbacks/cloze rendering use
+  `sanitizeHTMLToDom`, Studio previews use `MarkdownRenderer.render`.
+- Settings headings use `Setting.setHeading()`.
+- Removed the default `Mod + Alt + K` hotkey and the `onunload` leaf detach.
+- Settings model/connection requests use `requestUrl`.
+- Timers use `window.setTimeout`, `window.clearTimeout` and
   `window.requestAnimationFrame`.
-- Removed `:has()` and several unused variables.
-- Removed the word "Obsidian" from the manifest description; set a valid `authorUrl`.
-- Release, repository manifest and `main.js` are rebuilt from the same commit.
+- Removed `:has()`, unused variables and the word "Obsidian" from the description.
+- Set a valid `authorUrl`; repository manifest, release manifest and build artifact are
+  generated from the same commit.
 
 ### Feature set
 
@@ -34,4 +31,4 @@ styles, direct page navigation, statistics and card manager.
 ### Quality
 
 - **148 regression tests** pass.
-- README, Vietnamese guide and contributor guide updated for 1.0.4.
+- Requires Obsidian **1.13.0+**.

@@ -4,8 +4,8 @@
 highlighted passage — into editable flashcard decks, then review them with adaptive
 spaced repetition.
 
-> **Version 1.0.4** · desktop and mobile · submitted to the Obsidian community plugin
-> directory.
+> **Version 1.0.5** · requires Obsidian **1.13.0+** · desktop and mobile · submitted to
+> the Obsidian community plugin directory.
 
 ## Highlights
 

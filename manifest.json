@@ -1,8 +1,8 @@
 {
   "id": "pdl-flashcard",
   "name": "PDL Flashcard",
-  "version": "1.0.4",
-  "minAppVersion": "1.8.10",
+  "version": "1.0.5",
+  "minAppVersion": "1.13.0",
   "description": "AI-assisted flashcards for active recall: generate decks from notes or highlighted text, review with adaptive scheduling.",
   "author": "PDL",
   "authorUrl": "https://github.com/LuongPham16",
