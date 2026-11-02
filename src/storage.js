@@ -16,6 +16,7 @@ export class StorageMethods {
       if (!match) continue;
       try {
         const deck = JSON.parse(match[1]);
+        if (deck.archived === true) continue;
         const sourcePath = nfcText(deck.sourcePath);
         const sourceFile = this.app.vault.getAbstractFileByPath(sourcePath);
         for (const item of Array.isArray(deck.cards) ? deck.cards : []) {
@@ -53,6 +54,61 @@ export class StorageMethods {
     return { raw, json: match[1], deck: JSON.parse(match[1]) };
   }
 
+  async archiveDeck(file, archived = true) {
+    const parsed = await this.readDeck(file);
+    parsed.deck.archived = archived === true;
+    await this.writeDeck(file, parsed.raw, parsed.json, parsed.deck);
+    return parsed.deck;
+  }
+
+  async getArchivedDecks() {
+    const output = normalizePath(this.settings.outputFolder);
+    const archived = [];
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      if (!(file.path === output || file.path.startsWith(output + "/"))) continue;
+      try {
+        const { deck } = await this.readDeck(file);
+        if (deck.archived === true) archived.push({ file, title: deck.title || file.basename, count: deck.cards?.length || 0 });
+      } catch (_) { /* not a deck */ }
+    }
+    return archived.sort((a, b) => a.title.localeCompare(b.title, "vi"));
+  }
+
+  async renameDeck(file, name) {
+    const clean = String(name || "").trim().replace(/[\\/:*?"<>|]/g, "-");
+    if (!clean) throw new Error(L("Deck name cannot be empty.", "Tên deck không được để trống."));
+    const parsed = await this.readDeck(file);
+    const targetPath = normalizePath(`${file.parent?.path || this.settings.outputFolder}/${clean}.md`);
+    if (targetPath !== file.path && this.app.vault.getAbstractFileByPath(targetPath)) {
+      throw new Error(L("A note with that name already exists.", "Đã có note trùng tên."));
+    }
+    const deck = { ...parsed.deck, title: clean };
+    let body = parsed.raw.replace(parsed.json, JSON.stringify(deck, null, 2));
+    body = body.replace(/^# .*$/m, `# ${clean}`);
+    await this.app.vault.modify(file, body);
+    let result = file;
+    if (targetPath !== file.path) {
+      result = this.app.fileManager?.renameFile
+        ? await this.app.fileManager.renameFile(file, targetPath)
+        : await this.app.vault.rename(file, targetPath);
+    }
+    const view = this.getView(); if (view) await view.refresh();
+    return result;
+  }
+
+  async deleteDeck(file) {
+    let ids = [];
+    try { ids = (await this.readDeck(file)).deck.cards?.map(card => card.id).filter(Boolean) || []; } catch (_) { /* non-deck note */ }
+    if (this.app.fileManager?.trashFile) await this.app.fileManager.trashFile(file);
+    else await this.app.vault.delete(file);
+    if (ids.length) {
+      for (const id of ids) delete this.settings.schedule[id];
+      this.settings.reviews = (this.settings.reviews || []).filter(review => !ids.includes(review.cardId));
+      await this.saveData(this.settings);
+    }
+    const view = this.getView(); if (view) await view.refresh();
+  }
+
   /**
    * Every deck note keeps its source note path inside the linked JSON payload, so
    * a source note maps to exactly one deck. Used by the "generate from selection"
@@ -84,15 +140,17 @@ export class StorageMethods {
     const requestedType = card.type === "multiple-choice" ? "multiple-choice" : card.type === "cloze" ? "cloze" : "basic";
     const question = normalizeCardText(card.question).trim();
     const rawAnswer = normalizeCardText(card.answer).trim();
-    const answer = rawAnswer || (requestedType === "cloze" ? parseCloze(normalizeCardText(card.question)).answers.join(", ") : "");
+    let answer = rawAnswer || (requestedType === "cloze" ? parseCloze(normalizeCardText(card.question)).answers.join(", ") : "");
     if (!question) return null;
     if (requestedType !== "cloze" && !answer) return null;
     let choices;
     let type = requestedType;
     if (requestedType === "multiple-choice") {
       const candidates = Array.isArray(card.choices) ? card.choices.map(value => normalizeCardText(value).trim()) : [];
-      if (candidates.length === 4 && candidates.filter(Boolean).length === 4 && candidates.includes(answer)) {
+      const matched = candidates.find(choice => choice.toLowerCase() === answer.toLowerCase());
+      if (candidates.length === 4 && candidates.filter(Boolean).length === 4 && matched) {
         choices = candidates;
+        answer = matched;
       } else {
         type = "basic";
       }
@@ -169,6 +227,104 @@ export class StorageMethods {
       tags: Array.isArray(merged.tags) ? merged.tags.map(tag => normalizeCardText(tag).trim()).filter(Boolean) : merged.tags
     };
     await this.writeDeck(card.file, raw, json, deck);
+  }
+
+  async bulkUpdateTags(cards, addTags = [], removeTags = []) {
+    const byFile = new Map();
+    cards.forEach(card => {
+      if (!byFile.has(card.file.path)) byFile.set(card.file.path, { file: card.file, ids: new Set() });
+      byFile.get(card.file.path).ids.add(card.id);
+    });
+    const added = addTags.map(tag => String(tag).replace(/^#/, "").trim()).filter(Boolean);
+    const removed = new Set(removeTags.map(tag => String(tag).replace(/^#/, "").trim()).filter(Boolean));
+    for (const { file, ids } of byFile.values()) {
+      const { raw, json, deck } = await this.readDeck(file);
+      deck.cards = (deck.cards || []).map(card => {
+        if (!ids.has(card.id)) return card;
+        const tags = new Set(Array.isArray(card.tags) ? card.tags : []);
+        removed.forEach(tag => tags.delete(tag));
+        added.forEach(tag => tags.add(tag));
+        return { ...card, tags: [...tags] };
+      });
+      await this.writeDeck(file, raw, json, deck);
+    }
+  }
+
+  async bulkSetSuspended(cards, suspended) {
+    cards.forEach(card => {
+      const entry = this.settings.schedule[card.id] || { interval: 0, reps: 0, lapses: 0, due: Date.now() };
+      this.settings.schedule[card.id] = { ...entry, suspended: suspended === true };
+    });
+    await this.saveData(this.settings);
+    const view = this.getView(); if (view) await view.refresh();
+  }
+
+  async bulkDeleteCards(cards) {
+    const byFile = new Map();
+    cards.forEach(card => {
+      if (!byFile.has(card.file.path)) byFile.set(card.file.path, { file: card.file, ids: new Set() });
+      byFile.get(card.file.path).ids.add(card.id);
+    });
+    for (const { file, ids } of byFile.values()) {
+      const { raw, json, deck } = await this.readDeck(file);
+      deck.cards = (deck.cards || []).filter(card => !ids.has(card.id));
+      await this.writeDeck(file, raw, json, deck);
+    }
+    for (const card of cards) {
+      delete this.settings.schedule[card.id];
+      this.settings.reviews = (this.settings.reviews || []).filter(review => review.cardId !== card.id);
+    }
+    await this.saveData(this.settings);
+  }
+
+  async moveCards(cards, targetFile) {
+    if (!targetFile) throw new Error(L("Choose a target deck.", "Hãy chọn deck đích."));
+    const target = await this.readDeck(targetFile);
+    const targetIds = new Set((target.deck.cards || []).map(card => card.id));
+    const byFile = new Map();
+    cards.forEach(card => {
+      if (card.file.path === targetFile.path) return;
+      if (targetIds.has(card.id)) throw new Error(L("The target deck already contains one of these cards.", "Deck đích đã có một trong các thẻ này."));
+      if (!byFile.has(card.file.path)) byFile.set(card.file.path, { file: card.file, ids: new Set() });
+      byFile.get(card.file.path).ids.add(card.id);
+    });
+    const moved = [];
+    for (const { file, ids } of byFile.values()) {
+      const source = await this.readDeck(file);
+      source.deck.cards = (source.deck.cards || []).filter(card => {
+        if (ids.has(card.id)) { moved.push(card); return false; }
+        return true;
+      });
+      await this.writeDeck(file, source.raw, source.json, source.deck);
+    }
+    target.deck.cards = [...(target.deck.cards || []), ...moved];
+    await this.writeDeck(targetFile, target.raw, target.json, target.deck);
+    return moved.length;
+  }
+
+  async mergeDecks(sourceFile, targetFile) {
+    if (sourceFile.path === targetFile.path) throw new Error(L("Choose two different decks.", "Hãy chọn hai deck khác nhau."));
+    const source = await this.readDeck(sourceFile);
+    const cards = source.deck.cards || [];
+    if (!cards.length) throw new Error(L("The source deck is empty.", "Deck nguồn đang rỗng."));
+    await this.moveCards(cards.map(card => ({ ...card, file: sourceFile })), targetFile);
+    if (this.app.fileManager?.trashFile) await this.app.fileManager.trashFile(sourceFile);
+    else await this.app.vault.delete(sourceFile);
+    const view = this.getView(); if (view) await view.refresh();
+    return cards.length;
+  }
+
+  async createEmptyDeck(name) {
+    const clean = String(name || "").trim().replace(/[\\/:*?"<>|]/g, "-");
+    if (!clean) throw new Error(L("Deck name cannot be empty.", "Tên deck không được để trống."));
+    await this.ensureOutputFolder();
+    const path = normalizePath(`${this.settings.outputFolder}/${clean}.md`);
+    if (this.app.vault.getAbstractFileByPath(path)) throw new Error(L("A note with that name already exists.", "Đã có note trùng tên."));
+    const payload = { version: 1, title: clean, sourcePath: "", createdAt: new Date().toISOString(), generatedBy: "manual", cards: [] };
+    const body = `---\ntype: flashcard-deck\nllm_managed: false\ncard_count: 0\ngenerated_by: manual\n---\n\n# ${clean}\n\n\`\`\`pdl-flashcards\n${JSON.stringify(payload, null, 2)}\n\`\`\`\n`;
+    const created = await this.app.vault.create(path, body);
+    const view = this.getView(); if (view) await view.refresh();
+    return created;
   }
 
   async deleteCard(card) {

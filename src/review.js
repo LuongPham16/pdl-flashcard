@@ -8,9 +8,46 @@ import { L } from "./i18n.js";
 export class ReviewMethods {
   async rate(card, grade) {
     const now = Date.now();
+    const hasPrevious = Object.prototype.hasOwnProperty.call(this.settings.schedule, card.id);
     const previous = this.settings.schedule[card.id] || { interval: 0, reps: 0, lapses: 0 };
+    const steps = (String(this.settings.learningSteps ?? "1,10").split(",")
+      .map(value => Number(value)).filter(value => Number.isFinite(value) && value > 0));
+    const learningSteps = steps.length ? steps : [1, 10];
+    const isNew = !hasPrevious || Number(previous.reps || 0) === 0;
+    const isLearning = previous.learning === true;
     let interval;
-    if (grade === 1) interval = 10 / 1440;
+    let learning = false;
+    let learningStep = 0;
+    if (isNew || isLearning) {
+      const currentStep = Math.max(0, Math.min(learningSteps.length - 1, Number(previous.learningStep) || 0));
+      if (!isLearning) {
+        if (grade === 1 || grade === 2) {
+          interval = learningSteps[0] / 1440;
+          learning = true;
+          learningStep = 0;
+        } else if (grade === 3 && learningSteps.length > 1) {
+          interval = learningSteps[1] / 1440;
+          learning = true;
+          learningStep = 1;
+        } else {
+          interval = grade === 4 ? 4 : 1;
+        }
+      } else if (grade === 1) {
+        interval = learningSteps[0] / 1440;
+        learning = true;
+        learningStep = 0;
+      } else if (grade === 2) {
+        interval = learningSteps[currentStep] / 1440;
+        learning = true;
+        learningStep = currentStep;
+      } else if (grade === 3 && currentStep + 1 < learningSteps.length) {
+        interval = learningSteps[currentStep + 1] / 1440;
+        learning = true;
+        learningStep = currentStep + 1;
+      } else {
+        interval = grade === 4 ? 4 : 1;
+      }
+    } else if (grade === 1) interval = 10 / 1440;
     else if (grade === 2) interval = Math.max(1, previous.interval * 1.35 || 1);
     else if (grade === 3) interval = Math.max(2, previous.interval * 2.4 || 2);
     else interval = Math.max(4, previous.interval * 3.6 || 4);
@@ -21,7 +58,8 @@ export class ReviewMethods {
       interval, due: now + interval * DAY, reps: previous.reps + 1,
       lapses, lastGrade: grade, lastReviewed: now,
       suspended: previous.suspended === true,
-      buriedUntil: previous.buriedUntil || 0
+      buriedUntil: previous.buriedUntil || 0,
+      ...(learning ? { learning: true, learningStep } : { learning: false })
     };
     this.settings.reviews.push({ cardId: card.id, grade, at: now });
     this.settings.reviews = this.settings.reviews.slice(-4000);

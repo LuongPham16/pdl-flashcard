@@ -8,10 +8,11 @@ import { formatCount } from "../utils.js";
 import { L } from "../i18n.js";
 import { FlashcardStudioModal } from "./studio.js";
 import { FlashcardEditModal, DeleteFlashcardModal } from "./edit.js";
+import { BulkTagModal, MoveCardsModal, BulkDeleteModal, CreateDeckModal, ArchiveDecksModal } from "./bulk.js";
 
 class FlashcardManagerModal extends Modal {
   constructor(app, plugin) {
-    super(app); this.plugin = plugin; this.cards = []; this.query = ""; this.type = "all"; this.deck = "all"; this.tag = "all"; this.page = 0; this.pageSize = 25;
+    super(app); this.plugin = plugin; this.cards = []; this.query = ""; this.type = "all"; this.deck = "all"; this.tag = "all"; this.page = 0; this.pageSize = 25; this.selected = new Set(); this.duplicateOnly = false;
   }
 
   async onOpen() {
@@ -22,7 +23,10 @@ class FlashcardManagerModal extends Modal {
   }
 
   async reload() {
-    this.cards = await this.plugin.getCards(); this.render();
+    this.cards = await this.plugin.getCards();
+    const ids = new Set(this.cards.map(card => card.id));
+    this.selected.forEach(id => { if (!ids.has(id)) this.selected.delete(id); });
+    this.render();
   }
 
   render() {
@@ -71,16 +75,79 @@ class FlashcardManagerModal extends Modal {
     const add = toolbar.createEl("button", { cls: "pdl-manager-add", text: L("Create deck", "Tạo deck") });
     setIcon(add.createSpan(), "plus");
     add.onclick = () => new FlashcardStudioModal(this.app, this.plugin).open();
+
+    const bulk = root.createDiv({ cls: "pdl-manager-bulk" });
+    this.bulkCount = bulk.createSpan({ cls: "pdl-manager-bulk-count" });
+    const bulkAction = (label, icon, onClick, cls = "") => {
+      const button = bulk.createEl("button", { cls: `pdl-manager-bulk-button ${cls}`.trim(), attr: { title: label, "aria-label": label } });
+      setIcon(button.createSpan(), icon);
+      button.createSpan({ text: label });
+      button.onclick = onClick;
+      return button;
+    };
+    bulkAction(L("Bulk tags", "Tag hàng loạt"), "tags", () => {
+      if (this.selected.size) new BulkTagModal(this.app, this.plugin, this.selectedCards(), () => this.reload()).open();
+    });
+    bulkAction(L("Bulk move", "Chuyển hàng loạt"), "folder-input", () => {
+      if (this.selected.size) new MoveCardsModal(this.app, this.plugin, this.selectedCards(), () => this.reload()).open();
+    });
+    bulkAction(L("Bulk suspend", "Tạm dừng hàng loạt"), "pause-circle", async () => {
+      if (!this.selected.size) return;
+      await this.plugin.bulkSetSuspended(this.selectedCards(), true);
+      await this.reload();
+    });
+    bulkAction(L("Bulk unsuspend", "Bỏ tạm dừng hàng loạt"), "play-circle", async () => {
+      if (!this.selected.size) return;
+      await this.plugin.bulkSetSuspended(this.selectedCards(), false);
+      await this.reload();
+    });
+    bulkAction(L("Bulk delete", "Xóa hàng loạt"), "trash-2", () => {
+      if (this.selected.size) new BulkDeleteModal(this.app, this.plugin, this.selectedCards(), () => this.reload()).open();
+    }, "is-danger");
+    const duplicates = bulkAction(L("Bulk duplicates", "Trùng lặp hàng loạt"), "copy", () => {
+      this.duplicateOnly = !this.duplicateOnly;
+      this.page = 0;
+      this.renderResults();
+    });
+    duplicates.addClass("is-filter");
+    const archived = bulk.createEl("button", { cls: "pdl-manager-bulk-button is-filter", text: L("Archived decks", "Deck lưu trữ") });
+    archived.onclick = () => new ArchiveDecksModal(this.app, this.plugin, () => this.reload()).open();
+    const newDeck = bulk.createEl("button", { cls: "pdl-manager-bulk-button is-secondary", text: L("New empty deck", "Deck rỗng") });
+    newDeck.onclick = () => new CreateDeckModal(this.app, this.plugin, () => this.reload()).open();
+    this.bulkBar = bulk;
     this.results = root.createDiv({ cls: "pdl-manager-results" });
     this.renderResults();
   }
 
+  selectedCards() {
+    return this.cards.filter(card => this.selected.has(card.id));
+  }
+
+  updateBulkBar() {
+    if (!this.bulkCount) return;
+    this.bulkCount.setText(L(`${this.selected.size} selected`, `Đã chọn ${this.selected.size}`));
+    this.bulkBar.querySelectorAll("button").forEach(button => {
+      if (!button.classList.contains("is-secondary") && !button.classList.contains("is-filter")) button.disabled = this.selected.size === 0;
+    });
+  }
+
   getFiltered() {
     const q = this.query.trim().toLowerCase();
+    const duplicateIds = new Set();
+    if (this.duplicateOnly) {
+      const groups = new Map();
+      this.cards.forEach(card => {
+        const key = card.question.trim().toLowerCase();
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(card.id);
+      });
+      groups.forEach(ids => { if (ids.length > 1) ids.forEach(id => duplicateIds.add(id)); });
+    }
     return this.cards.filter(card => {
       if (this.type !== "all" && card.type !== this.type) return false;
       if (this.deck !== "all" && card.file?.path !== this.deck) return false;
       if (this.tag !== "all" && !(card.tags || []).includes(this.tag)) return false;
+      if (this.duplicateOnly && !duplicateIds.has(card.id)) return false;
       if (!q) return true;
       const cardTags = (card.tags || []).join(" ");
       return [card.question, card.answer, card.explanation, ...(card.choices || []), cardTags, card.sourcePath, card.deckTitle].join(" ").toLowerCase().includes(q);
@@ -102,16 +169,32 @@ class FlashcardManagerModal extends Modal {
       setIcon(empty.createSpan(), "search-x");
       empty.createEl("strong", { text: L("No matching flashcards", "Không có flashcard phù hợp") });
       empty.createEl("p", { text: L("Try a broader search or switch the card-type filter.", "Thử từ khóa rộng hơn hoặc đổi bộ lọc loại thẻ.") });
+      this.updateBulkBar();
       return;
     }
     const table = this.results.createDiv({ cls: "pdl-manager-table", attr: { role: "table", "aria-label": L("Flashcards", "Flashcard") } });
     const header = table.createDiv({ cls: "pdl-manager-row is-header", attr: { role: "row" } });
-    [L("Type", "Loại"), L("Question", "Câu hỏi"), L("Answer", "Đáp án"), L("Source", "Nguồn"), L("Actions", "Thao tác")].forEach(label => header.createSpan({ text: label, attr: { role: "columnheader" } }));
+    const typeHeader = header.createDiv({ cls: "pdl-manager-type-head", attr: { role: "columnheader" } });
+    const selectPage = typeHeader.createEl("input", { cls: "pdl-manager-select", attr: { type: "checkbox", "aria-label": L("Select page", "Chọn trang") } });
+    typeHeader.createSpan({ text: L("Type", "Loại") });
+    [L("Question", "Câu hỏi"), L("Answer", "Đáp án"), L("Source", "Nguồn"), L("Actions", "Thao tác")].forEach(label => header.createSpan({ text: label, attr: { role: "columnheader" } }));
+    selectPage.checked = visible.every(card => this.selected.has(card.id));
+    selectPage.onchange = () => {
+      visible.forEach(card => { if (selectPage.checked) this.selected.add(card.id); else this.selected.delete(card.id); });
+      this.renderResults();
+    };
     visible.forEach(card => {
       const row = table.createDiv({ cls: "pdl-manager-row", attr: { role: "row" } });
+      const typeCell = row.createDiv({ cls: "pdl-manager-type-cell", attr: { role: "cell" } });
+      const select = typeCell.createEl("input", { cls: "pdl-manager-select", attr: { type: "checkbox", "aria-label": L("Select card", "Chọn thẻ") } });
+      select.checked = this.selected.has(card.id);
+      select.onchange = () => {
+        if (select.checked) this.selected.add(card.id); else this.selected.delete(card.id);
+        this.updateBulkBar();
+      };
       const badgeCls = card.type === "multiple-choice" ? "is-mcq" : card.type === "cloze" ? "is-cloze" : "is-basic";
       const badgeLabel = card.type === "multiple-choice" ? "MCQ" : card.type === "cloze" ? "CLOZE" : "Q&A";
-      row.createSpan({ cls: `pdl-type-badge ${badgeCls}`, text: badgeLabel, attr: { role: "cell" } });
+      typeCell.createSpan({ cls: `pdl-type-badge ${badgeCls}`, text: badgeLabel });
 
       const question = row.createDiv({ cls: "pdl-manager-cell pdl-manager-question", attr: { role: "cell", title: card.question } });
       const scheduleEntry = this.plugin.settings.schedule[card.id];
@@ -149,6 +232,7 @@ class FlashcardManagerModal extends Modal {
     const nav = pager.createDiv();
     const previous = nav.createEl("button", { text: L("Previous", "Trước") }); previous.disabled = this.page === 0; previous.onclick = () => { this.page--; this.renderResults(); };
     const next = nav.createEl("button", { text: L("Next", "Sau") }); next.disabled = this.page >= pages - 1; next.onclick = () => { this.page++; this.renderResults(); };
+    this.updateBulkBar();
   }
 }
 

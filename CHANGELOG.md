@@ -2,6 +2,44 @@
 
 All notable changes to **PDL Flashcard** are recorded here.
 
+## [1.0.8] - 2026-11-02
+
+### Added
+
+- **Learning core** — configurable learning steps, cards per session, daily new/review
+  limits, and a resumable session banner.
+- **Bulk card manager** — select cards, add/remove tags, move decks, suspend, delete, find
+  duplicate questions, and create empty decks.
+- **Deck tools** — merge decks and archive/restore decks from the manager.
+- **Custom study by rating** — latest or any Again/Hard/Good/Easy rating.
+- **MD and XLSX import** with file-type hints; XLSX/TXT/Markdown export in addition to
+  CSV/JSON.
+- **Empty Source folders default** — read every folder until the user narrows the list.
+- **Dedicated Study tab** for review schedule and learning behaviour.
+- **Telegram feedback** — @luongpd contact card, GitHub Issues and copyable support info.
+
+### Changed
+
+- Import templates now enforce their selected card type even when the `Type` column is
+  blank; invalid MCQ imports are rejected instead of becoming Q&A.
+- Statistics deck table uses clearer labels, explanations and mature counts.
+- 90-day activity chart aggregates into 7-day columns; all ranges have an empty state.
+- Card reading text uses a cleaner sans-serif stack; headings keep the editorial serif.
+- Manager action tooltips are short labels.
+
+### Fixed
+
+- Cloze markers no longer make auto-detect choose the `::` delimiter.
+- MCQ answer matching is case-insensitive.
+- Archived/suspended cards are excluded consistently from ready/mature counts.
+- Duplicate correct-answer display, unbalanced cloze buttons and redundant hints remain
+  fixed from earlier releases.
+
+### Quality
+
+- **172 regression tests** pass.
+- Requires Obsidian **1.13.0+**.
+
 ## [1.0.7] - 2026-11-01
 
 ### Added

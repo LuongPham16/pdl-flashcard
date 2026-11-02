@@ -110,6 +110,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
     const tabBar = containerEl.createDiv({ cls: "pdl-settings-tabs" });
     const tabs = [
       { id: "general",  label: L("General",  "Chung")        },
+      { id: "study",    label: L("Study",    "Học tập")      },
       { id: "ai",       label: L("AI",       "AI")            },
       { id: "feedback", label: L("Feedback", "Phản hồi") + " 💬" },
     ];
@@ -121,6 +122,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
     /* ── Tab content ── */
     const panel = containerEl.createDiv({ cls: "pdl-settings-panel" });
     if (this._tab === "general")  this._renderGeneral(panel);
+    else if (this._tab === "study") this._renderStudy(panel);
     else if (this._tab === "ai")   this._renderAI(panel);
     else                           this._renderFeedback(panel);
   }
@@ -158,9 +160,17 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
     new Setting(el).setName(L("Flashcard folder", "Thư mục flashcard")).setDesc(L("Stores deck notes linked to their source notes.", "Nơi lưu các note deck, liên kết với note nguồn.")).addText(t => t
       .setValue(this.plugin.settings.outputFolder)
       .onChange(async v => { this.plugin.settings.outputFolder = normalizePath(v.trim() || "06 - Flashcards"); await this.plugin.ensureOutputFolder(); await this.plugin.saveData(this.plugin.settings); }));
-    new Setting(el).setName(L("Source folders", "Thư mục nguồn")).setDesc(L("Comma-separated. The plugin only reads Markdown source notes.", "Phân cách bằng dấy phẩy. Plugin chỉ đọc note Markdown nguồn.")).addTextArea(t => t
-      .setValue(this.plugin.settings.sourceFolders.join(", "))
-      .onChange(async v => { this.plugin.settings.sourceFolders = v.split(",").map(x => x.trim()).filter(Boolean); await this.plugin.saveData(this.plugin.settings); }));
+    new Setting(el).setName(L("Source folders", "Thư mục nguồn"))
+      .setDesc(L("Comma-separated. Leave empty to read every folder in the vault (the flashcard folder is always excluded).", "Phân cách bằng dấu phẩy. Để trống để đọc mọi folder trong vault (folder flashcard luôn bị loại trừ)."))
+      .addTextArea(t => t
+        .setPlaceholder(L("Leave empty for all folders", "Để trống để dùng tất cả folder"))
+        .setValue((this.plugin.settings.sourceFolders || []).join(", "))
+        .onChange(async v => { this.plugin.settings.sourceFolders = v.split(",").map(x => x.trim()).filter(Boolean); await this.plugin.saveData(this.plugin.settings); }))
+      .addButton(button => button.setButtonText(L("Use all folders", "Dùng tất cả folder")).onClick(async () => {
+        this.plugin.settings.sourceFolders = [];
+        await this.plugin.saveData(this.plugin.settings);
+        this.update();
+      }));
     heading(L("Cards per flashcard type", "Số thẻ theo loại flashcard"));
     el.createEl("p", { text: L("Default counts when you open the AI builder or the selection dialog.", "Số lượng mặc định khi mở AI builder hoặc dialog tạo từ đoạn bôi đen.") });
     const countSetting = (name, description, key, fallback) => new Setting(el)
@@ -215,7 +225,37 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
       .addButton(button => button.setButtonText(L("Refresh voices", "Làm mới giọng"))
         .onClick(() => this.update()));
 
-    heading(L("Review behaviour", "Hành vi ôn tập"));
+  }
+
+  /* ─────────────────── STUDY TAB ─────────────────── */
+  _renderStudy(el) {
+    const heading = text => new Setting(el).setName(text).setHeading();
+    el.createEl("p", { cls: "pdl-edit-context", text: L("Review schedule, daily limits and relearning behaviour.", "Lịch ôn, giới hạn mỗi ngày và cách học lại.") });
+    heading(L("Review schedule", "Lịch ôn tập"));
+    new Setting(el)
+      .setName(L("Cards per session", "Số thẻ mỗi phiên"))
+      .setDesc(L("Maximum cards in one review session. Daily limits below still apply.", "Số thẻ tối đa trong một phiên ôn. Giới hạn ngày bên dưới vẫn được áp dụng."))
+      .addSlider(s => s.setLimits(1, 100, 1).setDynamicTooltip().setValue(Number(this.plugin.settings.sessionSize ?? 12))
+        .onChange(async v => { this.plugin.settings.sessionSize = v; await this.plugin.saveData(this.plugin.settings); }));
+    new Setting(el)
+      .setName(L("New cards per day", "Thẻ mới mỗi ngày"))
+      .setDesc(L("New cards introduced per calendar day. 0 blocks new cards; cram sessions ignore this limit.", "Số thẻ mới được đưa vào mỗi ngày. 0 là chặn thẻ mới; phiên cram bỏ qua giới hạn này."))
+      .addText(t => t.setPlaceholder("20").setValue(String(this.plugin.settings.dailyNewLimit ?? 20))
+        .onChange(async v => { this.plugin.settings.dailyNewLimit = Math.max(0, Math.min(999, Math.floor(Number(v) || 0))); await this.plugin.saveData(this.plugin.settings); }));
+    new Setting(el)
+      .setName(L("Reviews per day", "Lượt ôn mỗi ngày"))
+      .setDesc(L("Maximum review answers logged per calendar day. 0 blocks due reviews; cram sessions ignore this limit.", "Số lượt ôn tối đa mỗi ngày. 0 là chặn thẻ đến hạn; phiên cram bỏ qua giới hạn này."))
+      .addText(t => t.setPlaceholder("200").setValue(String(this.plugin.settings.dailyReviewLimit ?? 200))
+        .onChange(async v => { this.plugin.settings.dailyReviewLimit = Math.max(0, Math.min(999, Math.floor(Number(v) || 0))); await this.plugin.saveData(this.plugin.settings); }));
+    new Setting(el)
+      .setName(L("Learning steps (minutes)", "Bước học (phút)"))
+      .setDesc(L("Comma-separated steps for new cards, e.g. 1,10. Again restarts at the first step; Good moves to the next; Easy graduates immediately.", "Các bước cho thẻ mới, ví dụ 1,10. Again quay lại bước đầu; Good sang bước kế; Easy tốt nghiệp ngay."))
+      .addText(t => t.setPlaceholder("1,10").setValue(String(this.plugin.settings.learningSteps ?? "1,10"))
+        .onChange(async v => {
+          const steps = String(v).split(",").map(value => Number(value)).filter(value => Number.isFinite(value) && value > 0).slice(0, 6);
+          this.plugin.settings.learningSteps = steps.join(",") || "1,10";
+          await this.plugin.saveData(this.plugin.settings);
+        }));
     new Setting(el)
       .setName(L("Re-show forgotten cards in the same session", "Hiện lại thẻ đã quên trong cùng phiên"))
       .setDesc(L("A card answered \"Again\" is queued once more at the end of the session, like Anki's relearning step.", "Thẻ bị chọn \"Again\" sẽ quay lại cuối phiên, giống bước học lại của Anki."))
@@ -434,72 +474,62 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
 
   /* ─────────────────── FEEDBACK TAB ─────────────────── */
   _renderFeedback(el) {
-    const GMAIL = "luongpham162k@gmail.com";
+    const GITHUB = "https://github.com/LuongPham16/pdl-flashcard/issues/new";
+    const TELEGRAM = "https://t.me/luongpd";
+    const TELEGRAM_HANDLE = "@luongpd";
+    const manifest = this.plugin.manifest;
+    const diagnostics = [
+      `Plugin: PDL Flashcard v${manifest?.version ?? "?"}`,
+      `Obsidian: ${this.app.version ?? "?"}`,
+      `Platform: ${navigator.platform || "?"}`
+    ].join("\n");
 
-    /* Hero banner */
     const hero = el.createDiv({ cls: "pdl-fb-hero" });
     hero.createDiv({ cls: "pdl-fb-emoji", text: "💌" });
-    const heroTitle = new Setting(hero).setName(L("Send feedback to the developer", "Gửi phản hồi cho tác giả")).setHeading();
-    heroTitle.settingEl?.addClass("pdl-fb-title");
+    hero.createEl("h3", { cls: "pdl-fb-title", text: L("Feedback & support", "Phản hồi & hỗ trợ") });
     hero.createEl("p", {
       text: L(
-        "Your feedback helps improve PDL Flashcard. Bug reports, feature ideas, and general thoughts are all welcome!",
-        "Phản hồi của bạn giúp PDL Flashcard ngày càng tốt hơn. Báo lỗi, đề xuất tính năng hay ý kiến chung đều được hoan nghênh!"
+        "Pick the channel that suits you. Telegram is best for a quick question; GitHub is best for a reproducible bug or a feature request.",
+        "Chọn kênh phù hợp. Telegram phù hợp để hỏi nhanh; GitHub phù hợp để báo lỗi có bước tái hiện hoặc đề xuất tính năng."
       ),
-      cls: "pdl-fb-desc",
+      cls: "pdl-fb-desc"
     });
 
-    /* Form card */
-    const card = el.createDiv({ cls: "pdl-fb-card" });
+    const grid = el.createDiv({ cls: "pdl-fb-contact-grid" });
+    const telegramCard = grid.createDiv({ cls: "pdl-fb-contact is-telegram" });
+    telegramCard.createSpan({ cls: "pdl-fb-contact-kicker", text: L("FASTEST", "NHANH NHẤT") });
+    telegramCard.createEl("h4", { text: "Telegram" });
+    telegramCard.createEl("p", { text: L("Message me directly. Good for questions, ideas and quick bug reports.", "Nhắn trực tiếp. Phù hợp câu hỏi, ý tưởng và báo lỗi nhanh.") });
+    telegramCard.createEl("strong", { cls: "pdl-fb-handle", text: TELEGRAM_HANDLE });
+    const telegramBtn = telegramCard.createEl("button", { cls: "pdl-fb-telegram", text: L("Open Telegram", "Mở Telegram") });
+    telegramBtn.onclick = () => window.open(TELEGRAM, "_blank", "noopener");
+    const telegramLink = telegramCard.createEl("a", { text: TELEGRAM, href: TELEGRAM, cls: "pdl-fb-contact-link" });
+    telegramLink.setAttr("target", "_blank");
+    telegramLink.setAttr("rel", "noopener");
 
-    /* Type selector */
-    card.createEl("label", { text: L("Type", "Loại phản hồi"), cls: "pdl-fb-label" });
-    const typeWrap = card.createDiv({ cls: "pdl-fb-types" });
-    const types = [
-      { id: "bug",     icon: "🐛", label: L("Bug report",   "Báo lỗi")       },
-      { id: "feature", icon: "✨", label: L("Feature idea", "Đề xuất tính năng") },
-      { id: "other",   icon: "💬", label: L("Other",        "Khác")             },
-    ];
-    let selectedType = "bug";
-    const typeBtns = {};
-    types.forEach(({ id, icon, label }) => {
-      const btn = typeWrap.createEl("button", { cls: "pdl-fb-type-btn" + (id === selectedType ? " is-active" : "") });
-      btn.createSpan({ text: icon, cls: "pdl-fb-type-icon" });
-      btn.createSpan({ text: label });
-      typeBtns[id] = btn;
-      btn.onclick = () => {
-        selectedType = id;
-        Object.entries(typeBtns).forEach(([k, b]) => b.classList.toggle("is-active", k === id));
-      };
-    });
-
-    /* Subject */
-    card.createEl("label", { text: L("Subject", "Tiêu đề"), cls: "pdl-fb-label" });
-    const subjectInput = card.createEl("input", { cls: "pdl-fb-input", attr: { type: "text", placeholder: L("Briefly describe your feedback…", "Mô tả ngắn gọn phản hồi của bạn…") } });
-
-    /* Message */
-    card.createEl("label", { text: L("Message", "Nội dung"), cls: "pdl-fb-label" });
-    const msgInput = card.createEl("textarea", { cls: "pdl-fb-textarea", attr: { placeholder: L("Describe in detail. Include steps to reproduce if reporting a bug.", "Mô tả chi tiết. Nếu báo lỗi, hãy nêu các bước để tái hiện lỗi."), rows: "6" } });
-
-    /* Plugin version info (auto-append) */
-    const manifest = this.plugin.manifest;
-    const versionLine = `\n\n---\nPlugin: PDL Flashcard v${manifest?.version ?? "?"}  |  Obsidian: ${this.app.version ?? "?"}`;
-
-    /* Send button */
-    const actions = card.createDiv({ cls: "pdl-fb-actions" });
-    const sendBtn = actions.createEl("button", { cls: "pdl-fb-send", text: L("Open in mail app  ✉️", "Mở ứng dụng mail  ✉️") });
-    sendBtn.onclick = () => {
-      const subj = subjectInput.value.trim() || L(`[PDL Flashcard] ${selectedType}`, `[PDL Flashcard] ${selectedType}`);
-      const typeLabel = types.find(t => t.id === selectedType)?.label ?? selectedType;
-      const body = `[${typeLabel}]\n\n${msgInput.value.trim()}${versionLine}`;
-      const mailto = `mailto:${GMAIL}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
-      window.open(mailto);
+    const githubCard = grid.createDiv({ cls: "pdl-fb-contact is-github" });
+    githubCard.createSpan({ cls: "pdl-fb-contact-kicker", text: L("BUGS & FEATURES", "LỖI & TÍNH NĂNG") });
+    githubCard.createEl("h4", { text: "GitHub Issues" });
+    githubCard.createEl("p", { text: L("Best for reproducible bugs, screenshots and feature requests that can be tracked.", "Phù hợp báo lỗi có bước tái hiện, ảnh chụp và đề xuất cần theo dõi.") });
+    const githubBtn = githubCard.createEl("button", { cls: "pdl-fb-secondary", text: L("Open GitHub issue", "Mở issue GitHub") });
+    githubBtn.onclick = () => {
+      const body = `### What happened?\n\n\n### Steps to reproduce\n1. \n2. \n3. \n\n### Expected result\n\n\n---\n${diagnostics}`;
+      window.open(`${GITHUB}?title=${encodeURIComponent("[PDL Flashcard] ")}&body=${encodeURIComponent(body)}`, "_blank", "noopener");
     };
 
-    /* Direct email hint */
-    const hint = el.createDiv({ cls: "pdl-fb-hint" });
-    hint.createSpan({ text: L("Or email directly: ", "Hoặc email trực tiếp: ") });
-    const link = hint.createEl("a", { text: GMAIL, href: `mailto:${GMAIL}`, cls: "pdl-fb-email-link" });
-    link.setAttr("target", "_blank");
+    const support = el.createDiv({ cls: "pdl-fb-diagnostics" });
+    const supportCopy = support.createDiv();
+    supportCopy.createEl("strong", { text: L("Support information", "Thông tin hỗ trợ") });
+    supportCopy.createSpan({ text: L("Copy the plugin, Obsidian and platform versions when reporting a bug.", "Sao chép phiên bản plugin, Obsidian và nền tảng khi báo lỗi.") });
+    const status = support.createDiv({ cls: "pdl-fb-status" });
+    const copyBtn = support.createEl("button", { cls: "pdl-fb-secondary", text: L("Copy support info", "Sao chép thông tin hỗ trợ") });
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(diagnostics);
+        status.setText(L("Copied support information.", "Đã sao chép thông tin hỗ trợ."));
+      } catch (_) {
+        status.setText(L("Could not copy automatically. Select the text and copy it manually.", "Không sao chép tự động được. Hãy bôi đen và sao chép thủ công."));
+      }
+    };
   }
 }

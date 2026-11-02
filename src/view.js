@@ -17,6 +17,8 @@ import { FlashcardStatisticsModal } from "./modals/statistics.js";
 import { FlashcardManagerModal } from "./modals/manager.js";
 import { FlashcardStudioModal } from "./modals/studio.js";
 import { FlashcardDayModal } from "./modals/day.js";
+import { RenameDeckModal, DeleteDeckModal } from "./modals/deck.js";
+import { MergeDecksModal } from "./modals/bulk.js";
 
 /**
  * Georgia has no Vietnamese glyphs on Windows. Set the reading font inline too so
@@ -190,6 +192,7 @@ export class PDLFlashcardView extends ItemView {
     brand.createSpan({ text: L("MEMORY PRESS", "BẢN TIN HỌC TẬP") });
     masthead.createSpan({ cls: "pdl-edition", text: `${new Intl.DateTimeFormat(locale(), { weekday:"long", day:"2-digit", month:"2-digit" }).format(new Date())} · ${L("DAILY EDITION", "BẢN HÔM NAY")}` });
 
+    this.renderResumeBanner(root);
     const statGrid = root.createDiv({ cls: "pdl-stat-grid" });
     const statCells = [[L("Due", "Đến hạn"), stats.due, "clock-3"], [L("Today", "Hôm nay"), stats.todayReviews, "check-circle-2"], [L("Mature", "Thành thạo"), stats.mature, "shield-check"], [L("Day streak", "Chuỗi ngày"), stats.streak, "flame"]];
     if (stats.suspended) statCells.push([L("Suspended", "Tạm dừng"), stats.suspended, "pause-circle"]);
@@ -394,7 +397,34 @@ export class PDLFlashcardView extends ItemView {
       copy.createEl("strong", { text: cards[0].deckTitle || cards[0].file.basename });
       copy.createSpan({ text: L(`${formatCount(cards.length, cards.length >= 10000)} questions · source: ${cards[0].sourceFile ? cards[0].sourceFile.basename : cards[0].sourcePath || "unknown"}`, `${formatCount(cards.length, cards.length >= 10000)} câu hỏi · nguồn: ${cards[0].sourceFile ? cards[0].sourceFile.basename : cards[0].sourcePath || "không rõ"}`) });
       const due = cards.filter(c => !this.plugin.settings.schedule[c.id] || this.plugin.settings.schedule[c.id].due <= Date.now()).length;
-      row.createSpan({ cls: "pdl-due-pill", text: due ? L(`${formatCount(due, due >= 10000)} due`, `${formatCount(due, due >= 10000)} đến hạn`) : L("Up to date", "Đã ôn hết"), attr: { title: due ? L(`${formatCount(due)} cards due`, `${formatCount(due)} thẻ đến hạn`) : L("No cards due", "Không có thẻ đến hạn") } });
+      const trail = row.createDiv({ cls: "pdl-topic-trail" });
+      trail.createSpan({ cls: "pdl-due-pill", text: due ? L(`${formatCount(due, due >= 10000)} due`, `${formatCount(due, due >= 10000)} đến hạn`) : L("Up to date", "Đã ôn hết"), attr: { title: due ? L(`${formatCount(due)} cards due`, `${formatCount(due)} thẻ đến hạn`) : L("No cards due", "Không có thẻ đến hạn") } });
+      const deckActions = trail.createDiv({ cls: "pdl-topic-actions" });
+      const rename = deckActions.createEl("button", { attr: { "aria-label": L("Rename deck", "Đổi tên deck"), title: L("Rename deck", "Đổi tên deck") } });
+      setIcon(rename, "pencil");
+      rename.onclick = event => {
+        event.stopPropagation();
+        new RenameDeckModal(this.app, this.plugin, cards[0].file, cards[0].deckTitle, () => this.refresh()).open();
+      };
+      const archive = deckActions.createEl("button", { attr: { "aria-label": L("Archive deck", "Lưu trữ deck"), title: L("Archive deck", "Lưu trữ deck") } });
+      setIcon(archive, "archive");
+      archive.onclick = async event => {
+        event.stopPropagation();
+        await this.plugin.archiveDeck(cards[0].file, true);
+        new Notice(L("Deck archived. Restore it from Manager → Archived decks.", "Đã lưu trữ deck. Khôi phục trong Manager → Deck lưu trữ."));
+      };
+      const merge = deckActions.createEl("button", { attr: { "aria-label": L("Merge deck", "Gộp deck"), title: L("Merge deck", "Gộp deck") } });
+      setIcon(merge, "git-merge");
+      merge.onclick = event => {
+        event.stopPropagation();
+        new MergeDecksModal(this.app, this.plugin, cards[0].file, null, () => this.refresh()).open();
+      };
+      const remove = deckActions.createEl("button", { cls: "is-danger", attr: { "aria-label": L("Delete deck", "Xóa deck"), title: L("Delete deck", "Xóa deck") } });
+      setIcon(remove, "trash-2");
+      remove.onclick = event => {
+        event.stopPropagation();
+        new DeleteDeckModal(this.app, this.plugin, cards[0].file, cards[0].deckTitle, () => this.refresh()).open();
+      };
       const go = () => this.startSession(cards);
       row.onclick = go; row.onkeydown = e => { if (e.key === "Enter" || e.key === " ") go(); };
     }
@@ -439,32 +469,110 @@ export class PDLFlashcardView extends ItemView {
 
   startSession(pool = this.cards, forceAll = false) {
     const now = Date.now();
+    const today = dateKey(now);
     // Suspended and buried cards stay out of every queue, including cram sessions.
     const available = pool.filter(card => this.plugin.isCardAvailable(card, now));
     const skipped = pool.length - available.length;
+    const sessionSize = Math.max(1, Number(this.plugin.settings.sessionSize) || 12);
     let selected = [];
     if (forceAll) {
-      selected = [...available];
+      selected = available.slice(0, sessionSize);
     } else {
       const sorted = [...available].sort((a,b) => {
         const sa = this.plugin.settings.schedule[a.id], sb = this.plugin.settings.schedule[b.id];
         return (sa ? sa.due : 0) - (sb ? sb.due : 0);
       });
-      const due = sorted.filter(card => !this.plugin.settings.schedule[card.id] || this.plugin.settings.schedule[card.id].due <= now);
-      selected = due.slice(0, this.plugin.settings.sessionSize);
-      if (!selected.length) selected = sorted.slice(0, this.plugin.settings.sessionSize);
+      const firstSeen = new Map();
+      (this.plugin.settings.reviews || []).forEach(review => {
+        if (!firstSeen.has(review.cardId) || review.at < firstSeen.get(review.cardId)) firstSeen.set(review.cardId, review.at);
+      });
+      const newToday = [...firstSeen.values()].filter(at => dateKey(at) === today).length;
+      const reviewToday = (this.plugin.settings.reviews || []).filter(review => dateKey(review.at) === today).length;
+      const newRoom = Math.max(0, Number(this.plugin.settings.dailyNewLimit ?? 20) - newToday);
+      const reviewRoom = Math.max(0, Number(this.plugin.settings.dailyReviewLimit ?? 200) - reviewToday);
+      const isNew = card => {
+        const entry = this.plugin.settings.schedule[card.id];
+        return !entry || Number(entry.reps || 0) === 0;
+      };
+      const reviewCards = sorted.filter(card => !isNew(card) && this.plugin.settings.schedule[card.id].due <= now);
+      const newCards = sorted.filter(isNew);
+      selected = [
+        ...reviewCards.slice(0, reviewRoom),
+        ...newCards.slice(0, newRoom)
+      ].slice(0, sessionSize);
     }
     if (!selected.length) {
+      this.session = [];
+      this.index = 0;
+      const dailyLimitReached = !forceAll && (Number(this.plugin.settings.dailyNewLimit) === 0 || Number(this.plugin.settings.dailyReviewLimit) === 0);
       new Notice(skipped
         ? L("No flashcards are available for this session (suspended or buried cards are excluded).", "Không có flashcard nào cho phiên này (thẻ tạm dừng hoặc bị ẩn đã được loại).")
-        : L("No flashcards are available for this session.", "Không có flashcard nào cho phiên này."));
+        : dailyLimitReached
+          ? L("Daily limits are blocking this session. Adjust them in Settings or use Custom Study.", "Giới hạn ngày đang chặn phiên này. Chỉnh trong Settings hoặc dùng Custom Study.")
+          : L("No cards are due right now. Use Custom Study for a cram session.", "Hiện không có thẻ nào đến hạn. Dùng Custom Study để ôn tự do."));
       return;
     }
     this.session = selected;
     this.index = 0; this.revealed = false; this.grades = []; this.selectedChoice = null; this.showQuestionMode = false;
     this.undoStack = [];
     this.requeueCounts = new Map();
+    this.plugin.settings.resumeSession = {
+      ids: selected.map(card => card.id),
+      index: 0,
+      grades: [],
+      startedAt: Date.now()
+    };
+    void this.plugin.saveData(this.plugin.settings);
     this.renderReview();
+  }
+
+  saveResumeProgress() {
+    const state = this.plugin.settings.resumeSession;
+    if (!state) return;
+    if (this.index >= this.session.length) {
+      this.plugin.settings.resumeSession = null;
+    } else {
+      state.ids = this.session.map(card => card.id);
+      state.index = this.index;
+      state.grades = [...this.grades];
+    }
+    void this.plugin.saveData(this.plugin.settings);
+  }
+
+  renderResumeBanner(root) {
+    const state = this.plugin.settings.resumeSession;
+    if (!state || !Array.isArray(state.ids) || !state.ids.length) return;
+    const byId = new Map(this.cards.map(card => [card.id, card]));
+    const cards = state.ids.map(id => byId.get(id)).filter(Boolean);
+    if (!cards.length || state.index >= cards.length) {
+      this.plugin.settings.resumeSession = null;
+      void this.plugin.saveData(this.plugin.settings);
+      return;
+    }
+    const remaining = cards.length - state.index;
+    const banner = root.createDiv({ cls: "pdl-resume-banner" });
+    const copy = banner.createDiv();
+    copy.createEl("strong", { text: L("Continue your review session", "Tiếp tục phiên ôn") });
+    copy.createSpan({ text: L(`${remaining} cards left. Resume where you stopped or discard the session.`, `Còn ${remaining} thẻ. Tiếp tục từ chỗ dừng hoặc bỏ phiên.`) });
+    const actions = banner.createDiv({ cls: "pdl-resume-actions" });
+    const resume = actions.createEl("button", { cls: "mod-cta", text: L("Resume", "Tiếp tục") });
+    resume.onclick = () => {
+      this.session = cards;
+      this.index = Math.min(state.index, cards.length - 1);
+      this.grades = Array.isArray(state.grades) ? state.grades.slice(0, this.index) : [];
+      this.revealed = false;
+      this.selectedChoice = null;
+      this.showQuestionMode = false;
+      this.undoStack = [];
+      this.requeueCounts = new Map();
+      this.renderReview();
+    };
+    const discard = actions.createEl("button", { text: L("Discard", "Bỏ") });
+    discard.onclick = async () => {
+      this.plugin.settings.resumeSession = null;
+      await this.plugin.saveData(this.plugin.settings);
+      this.renderDashboard();
+    };
   }
 
   renderReview() {
@@ -542,6 +650,7 @@ export class PDLFlashcardView extends ItemView {
     const skipCard = () => {
       this.revealed = false; this.selectedChoice = null; this.showQuestionMode = false;
       this.index++;
+      this.saveResumeProgress();
       this.renderReview();
     };
     const suspendBtn = labelBox.createEl("button", { cls: "pdl-tts-button pdl-suspend-button", attr: { "aria-label": L("Suspend this card", "Tạm dừng thẻ này"), title: L("Suspend this card (hide from reviews)", "Tạm dừng thẻ này (ẩn khỏi các phiên ôn)") } });
@@ -858,6 +967,7 @@ export class PDLFlashcardView extends ItemView {
     this.revealed = false;
     this.selectedChoice = null;
     this.showQuestionMode = false;
+    this.saveResumeProgress();
     this.renderReview();
   }
 
@@ -878,6 +988,7 @@ export class PDLFlashcardView extends ItemView {
     const count = this.requeueCounts.get(entry.cardId) || 0;
     if (entry.requeued && count > 0) this.requeueCounts.set(entry.cardId, count - 1);
     this.index = entry.index;
+    this.saveResumeProgress();
     this.revealed = false;
     this.selectedChoice = null;
     this.showQuestionMode = false;
@@ -886,6 +997,10 @@ export class PDLFlashcardView extends ItemView {
   }
 
   renderSummary() {
+    if (this.plugin.settings.resumeSession) {
+      this.plugin.settings.resumeSession = null;
+      void this.plugin.saveData(this.plugin.settings);
+    }
     const root = this.containerEl.children[1]; root.empty(); root.addClass("pdl-flashcard");
     const box = root.createDiv({ cls: "pdl-summary" });
     const icon = box.createSpan({ cls: "pdl-summary-icon" }); setIcon(icon, "sparkles");

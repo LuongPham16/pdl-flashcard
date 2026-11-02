@@ -53,7 +53,11 @@ class FlashcardStatisticsModal extends Modal {
     const cardById = new Map(this.cards.map(card => [card.id, card]));
     knownReviews.forEach(review => { const card=cardById.get(review.cardId); if(card&&decks.has(card.file.path)) decks.get(card.file.path).reviews++; });
     const deckRows = [...decks.values()]
-      .map(deck => ({ ...deck, due:deck.cards.filter(card=>!schedule[card.id]||schedule[card.id].due<=now).length, mature:deck.cards.filter(card=>(schedule[card.id]?.interval||0)>=21).length }))
+      .map(deck => ({
+        ...deck,
+        due:deck.cards.filter(card=>this.plugin.isCardAvailable(card,now)&&(!schedule[card.id]||schedule[card.id].due<=now)).length,
+        mature:deck.cards.filter(card=>(schedule[card.id]?.interval||0)>=21&&!schedule[card.id]?.suspended).length
+      }))
       .sort((a,b)=>b.due-a.due||b.cards.length-a.cards.length);
     const difficult = this.cards.map(card => ({ card, lapses:schedule[card.id]?.lapses||0, reps:schedule[card.id]?.reps||0 })).filter(item=>item.lapses>0).sort((a,b)=>b.lapses-a.lapses||b.reps-a.reps);
     return { knownReviews, recent, due, newCards, mature, suspended, retention, uniqueReviewed, days, ratings, deckRows, difficult };
@@ -86,14 +90,36 @@ class FlashcardStatisticsModal extends Modal {
     const grid=root.createDiv({cls:"pdl-stats-grid"});
     const activity=grid.createDiv({cls:"pdl-stats-panel pdl-activity-panel"});
     this.panelTitle(activity, L("Review Activity", "Hoạt động ôn tập"), L(`${formatCount(data.recent.length)} reviews over ${this.range} days`, `${formatCount(data.recent.length)} lượt ôn trong ${this.range} ngày`));
-    const max=Math.max(1,...data.days.map(day=>day.count));
+    const buckets = [];
+    if (this.range === 90) {
+      for (let index = 0; index < data.days.length; index += 7) {
+        const slice = data.days.slice(index, index + 7);
+        if (!slice.length) continue;
+        buckets.push({
+          label: slice[0].label,
+          endLabel: slice[slice.length - 1].label,
+          count: slice.reduce((sum, day) => sum + day.count, 0)
+        });
+      }
+    } else {
+      data.days.forEach(day => buckets.push({ label: day.label, endLabel: day.label, count: day.count }));
+    }
+    const max=Math.max(1,...buckets.map(bucket=>bucket.count));
     const bars=activity.createDiv({cls:"pdl-activity-chart",attr:{role:"img","aria-label":L(`${data.recent.length} reviews over the last ${this.range} days`, `${data.recent.length} lượt ôn trong ${this.range} ngày qua`)}});
-    data.days.forEach((day,index)=>{
-      const bar=bars.createDiv({cls:"pdl-activity-day",attr:{tabindex:"0",title:L(`${day.label}: ${day.count} reviews`, `${day.label}: ${day.count} lượt ôn`)}});
-      const fill=bar.createDiv({cls:"pdl-activity-bar"});
-      fill.setCssProps({ height: `${Math.max(day.count?8:2,day.count/max*100)}%` });
-      if(this.range<=30&&(index===0||index===data.days.length-1||index%7===0))bar.createSpan({text:day.label});
-    });
+    if (!data.recent.length) {
+      bars.createDiv({ cls: "pdl-stats-empty", text: L("No reviews in this period yet.", "Chưa có lượt ôn nào trong khoảng này.") });
+    } else {
+      buckets.forEach((bucket,index)=>{
+        const period = bucket.label === bucket.endLabel ? bucket.label : `${bucket.label} – ${bucket.endLabel}`;
+        const bar=bars.createDiv({cls:"pdl-activity-day",attr:{tabindex:"0",title:L(`${period}: ${bucket.count} reviews`, `${period}: ${bucket.count} lượt ôn`)}});
+        const fill=bar.createDiv({cls:"pdl-activity-bar"});
+        fill.setCssProps({ height: `${Math.max(bucket.count?8:2,bucket.count/max*100)}%` });
+        if(this.range===90||this.range<=30&&(index===0||index===buckets.length-1||index%7===0))bar.createSpan({text:bucket.label});
+      });
+      if (this.range === 90) {
+        activity.createDiv({ cls: "pdl-activity-note", text: L("Each bar is one 7-day period.", "Mỗi cột là một giai đoạn 7 ngày.") });
+      }
+    }
     const ratings=grid.createDiv({cls:"pdl-stats-panel pdl-ratings-panel"});
     this.panelTitle(ratings, L("Rating Distribution", "Phân bố đánh giá"), L("Recall quality for the selected range", "Chất lượng ghi nhớ trong khoảng đã chọn"));
     const ratingTotal=Math.max(1,data.ratings.reduce((sum,item)=>sum+item.count,0));
@@ -108,12 +134,23 @@ class FlashcardStatisticsModal extends Modal {
     });
     const decks=root.createDiv({cls:"pdl-stats-panel pdl-deck-performance"});
     this.panelTitle(decks, L("Deck Performance", "Hiệu quả theo deck"), L("Highest workload first · all decks", "Ưu tiên deck nhiều việc · tất cả deck"));
+    const help=decks.createDiv({cls:"pdl-stats-help"});
+    help.createSpan({text:L(
+      "Cards = total cards · Ready now = available for review today · Mature = interval of 21+ days · Reviews = all-time answers",
+      "Thẻ = tổng số thẻ · Sẵn sàng = có thể ôn hôm nay · Thành thạo = khoảng ôn từ 21 ngày · Lượt ôn = tổng số lần đã trả lời"
+    )});
     const deckPages=Math.max(1,Math.ceil(data.deckRows.length/DECK_PAGE_SIZE));
     this.deckPage=Math.min(this.deckPage,deckPages-1);
     const deckStart=this.deckPage*DECK_PAGE_SIZE;
     const table=decks.createDiv({cls:"pdl-stats-deck-table"});
     const header=table.createDiv({cls:"pdl-stats-deck-row is-header"});
-    [L("Deck", "Deck"), L("Cards", "Thẻ"), L("Due", "Đến hạn"), L("Mature", "Thành thạo"), L("Reviews", "Lượt ôn")].forEach(label=>header.createSpan({text:label}));
+    [
+      [L("Deck", "Deck"), ""],
+      [L("Cards", "Thẻ"), L("Total cards in the deck", "Tổng số thẻ trong deck")],
+      [L("Ready now", "Sẵn sàng"), L("Cards available to review now", "Số thẻ có thể ôn ngay")],
+      [L("Mature", "Thành thạo"), L("Cards with an interval of 21 days or more", "Thẻ có khoảng ôn từ 21 ngày trở lên")],
+      [L("Total reviews", "Tổng lượt ôn"), L("All-time answers for this deck", "Tổng số lần trả lời của deck")]
+    ].forEach(([label, title]) => header.createSpan({text:label, attr:title ? { title } : {}}));
     data.deckRows.slice(deckStart,deckStart+DECK_PAGE_SIZE).forEach(deck=>{
       const row=table.createDiv({cls:"pdl-stats-deck-row"});
       const name=row.createDiv();
@@ -121,25 +158,31 @@ class FlashcardStatisticsModal extends Modal {
       name.createSpan({text:deck.source});
       row.createSpan({text:formatCount(deck.cards.length)});
       row.createSpan({text:formatCount(deck.due)});
-      const progress=row.createDiv({cls:"pdl-maturity-cell"});
-      progress.createSpan({text:`${deck.cards.length?Math.round(deck.mature/deck.cards.length*100):0}%`});
+      const maturePercent=deck.cards.length?Math.round(deck.mature/deck.cards.length*100):0;
+      const progress=row.createDiv({cls:"pdl-maturity-cell", attr:{ title:L(`${deck.mature} of ${deck.cards.length} cards are mature (${maturePercent}%)`, `${deck.mature}/${deck.cards.length} thẻ thành thạo (${maturePercent}%)`) }});
+      progress.createSpan({cls:"pdl-maturity-label", text:`${maturePercent}% · ${formatCount(deck.mature)}/${formatCount(deck.cards.length)}`});
       const track=progress.createDiv();
       const fill=track.createDiv();
-      fill.setCssProps({ width: `${deck.cards.length?deck.mature/deck.cards.length*100:0}%` });
+      fill.setCssProps({ width: `${maturePercent}%` });
       row.createSpan({text:formatCount(deck.reviews)});
     });
     if(!data.deckRows.length)table.createDiv({cls:"pdl-stats-empty",text:L("Create a deck to start measuring progress.", "Tạo một deck để bắt đầu đo tiến độ.")});
     else this.renderPager(decks,this.deckPage,deckPages,page=>{this.deckPage=page;this.render();});
 
     const hard=root.createDiv({cls:"pdl-stats-panel pdl-hardest-panel"});
-    this.panelTitle(hard, L("Cards Needing Attention", "Thẻ cần chú ý"), L("All lapsed cards, most first", "Tất cả thẻ bị quên, nhiều nhất trước"));
+    this.panelTitle(hard, L("Cards Needing Attention", "Thẻ cần chú ý"), L("Cards forgotten at least once · sorted by lapses", "Thẻ đã quên ít nhất một lần · xếp theo số lần quên"));
+    const hardHelp=hard.createDiv({cls:"pdl-stats-help"});
+    hardHelp.createSpan({text:L(
+      "Lapses = times you pressed Again. This is a card-quality signal, not a list of cards due today. Rewrite vague cards or add context to the source note.",
+      "Số lần quên = số lần bạn bấm Again. Đây là tín hiệu chất lượng thẻ, không phải danh sách thẻ đến hạn hôm nay. Nên viết lại thẻ mơ hồ hoặc bổ sung ngữ cảnh cho note nguồn."
+    )});
     if(!data.difficult.length)hard.createDiv({cls:"pdl-stats-empty",text:L("No lapsed cards yet. Keep reviewing to reveal useful patterns.", "Chưa có thẻ nào bị quên. Tiếp tục ôn để thấy các mẫu hữu ích.")});
     else {
       const hardPages=Math.max(1,Math.ceil(data.difficult.length/HARD_PAGE_SIZE));
       this.hardPage=Math.min(this.hardPage,hardPages-1);
       const hardStart=this.hardPage*HARD_PAGE_SIZE;
       const hardList=hard.createDiv({cls:"pdl-stats-hard-list"});
-      data.difficult.slice(hardStart,hardStart+HARD_PAGE_SIZE).forEach((item,index)=>{const row=hardList.createDiv({cls:"pdl-hard-card"});row.createSpan({text:String(hardStart+index+1).padStart(2,"0")});const text=row.createDiv();text.createEl("strong",{text:item.card.question});text.createSpan({text:item.card.sourceFile?.basename||item.card.deckTitle});row.createEl("b",{text:L(`${item.lapses} ${item.lapses===1?"lapse":"lapses"}`, `${item.lapses} lần quên`)});const edit=row.createEl("button",{attr:{"aria-label":L("Edit","Sửa"),title:L("Edit","Sửa")}});setIcon(edit,"pencil");edit.onclick=()=>new FlashcardEditModal(this.app,this.plugin,item.card,async()=>{this.cards=await this.plugin.getCards();this.render();}).open();});
+      data.difficult.slice(hardStart,hardStart+HARD_PAGE_SIZE).forEach((item,index)=>{const row=hardList.createDiv({cls:"pdl-hard-card"});row.createSpan({text:String(hardStart+index+1).padStart(2,"0")});const text=row.createDiv();text.createEl("strong",{text:item.card.question});text.createSpan({text:item.card.sourceFile?.basename||item.card.deckTitle});row.createEl("b",{text:L(`${item.lapses} ${item.lapses===1?"lapse":"lapses"}`, `${item.lapses} lần quên`),attr:{title:L("Times this card was rated Again", "Số lần thẻ bị đánh giá Again")}});const edit=row.createEl("button",{attr:{"aria-label":L("Edit","Sửa"),title:L("Edit","Sửa")}});setIcon(edit,"pencil");edit.onclick=()=>new FlashcardEditModal(this.app,this.plugin,item.card,async()=>{this.cards=await this.plugin.getCards();this.render();}).open();});
       this.renderPager(hard,this.hardPage,hardPages,page=>{this.hardPage=page;this.render();});
     }
   }

@@ -57,7 +57,8 @@ function delimiterCounts(lines) {
 function detectDelimiter(text) {
   const lines = String(text || "").split(/\r?\n/)
     .filter(line => line.trim() && !/^\s*(#|\/\/)/.test(line));
-  if (lines.some(line => line.includes("::"))) return "double-colon";
+  const withoutClozeMarkers = lines.map(line => line.replace(/\{\{(?:c\d+::)?[^}]*\}\}/g, ""));
+  if (withoutClozeMarkers.some(line => line.includes("::"))) return "double-colon";
   if (lines.some(line => line.includes("\t"))) return "tab";
   const counts = delimiterCounts(lines);
   const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
@@ -105,7 +106,7 @@ function parseJsonCards(text) {
  * Parse pasted/selected text into normalized card drafts.
  * JSON is accepted directly; delimited text uses `delimiter` or auto-detection.
  */
-function parseImportCards(text, delimiter = "auto") {
+function parseImportCards(text, delimiter = "auto", typeHint = "") {
   const source = String(text || "").trim();
   if (!source) return { cards: [], delimiter: "" };
   if (source.startsWith("{") || source.startsWith("[")) {
@@ -124,7 +125,7 @@ function parseImportCards(text, delimiter = "auto") {
     const columns = splitDelimited(lines[index], chosen);
     if (columns.length < 2) continue;
     const question = columns[0];
-    const type = (columns[2] || "basic").trim();
+    const type = (typeHint || columns[2] || "basic").trim();
     const explanation = (columns[3] || "").trim();
     const tags = (columns[4] || "").split(/[,|]/).map(tag => tag.trim()).filter(Boolean);
     const choices = columns.slice(5, 9).map(choice => choice.trim()).filter(Boolean);

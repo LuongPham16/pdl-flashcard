@@ -13,26 +13,34 @@ const { PluginClass, stub } = loadBundle();
 const DAY = 86400000;
 const card = (id = "c1", question = "Question?") => ({ id, question, answer: "Answer" });
 
-test("Again resets the card to a ten minute step and counts a lapse", async () => {
+test("Again returns a new card to the first learning step", async () => {
   const plugin = makePlugin(PluginClass, stub);
   const target = card();
   await plugin.rate(target, 1);
   const entry = plugin.settings.schedule.c1;
-  assert.equal(entry.interval, 10 / 1440);
+  assert.equal(entry.interval, 1 / 1440);
   assert.equal(entry.reps, 1);
   assert.equal(entry.lapses, 1);
+  assert.equal(entry.learning, true);
   assert.equal(entry.lastGrade, 1);
-  assert.ok(entry.due > Date.now() + 9 * 60000, "due roughly ten minutes out");
-  assert.ok(entry.due < Date.now() + 11 * 60000);
+  assert.ok(entry.due > Date.now() + 30 * 1000, "due roughly one minute out");
+  assert.ok(entry.due < Date.now() + 2 * 60000);
 });
 
-test("Hard, Good and Easy grow from zero with distinct first steps", async () => {
+test("new cards follow the configured learning steps", async () => {
   const plugin = makePlugin(PluginClass, stub);
-  for (const [grade, expected] of [[2, 1], [3, 2], [4, 4]]) {
-    const target = card(`g${grade}`);
-    await plugin.rate(target, grade);
-    assert.equal(plugin.settings.schedule[`g${grade}`].interval, expected, `grade ${grade} first interval`);
-  }
+  const good = card("good");
+  await plugin.rate(good, 3);
+  assert.equal(plugin.settings.schedule.good.interval, 10 / 1440);
+  assert.equal(plugin.settings.schedule.good.learning, true);
+  await plugin.rate(good, 3);
+  assert.equal(plugin.settings.schedule.good.interval, 1, "graduates after the final step");
+  assert.equal(plugin.settings.schedule.good.learning, false);
+
+  const easy = card("easy");
+  await plugin.rate(easy, 4);
+  assert.equal(plugin.settings.schedule.easy.interval, 4);
+  assert.equal(plugin.settings.schedule.easy.learning, false);
 });
 
 test("later grades multiply the previous interval", async () => {

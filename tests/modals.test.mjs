@@ -70,6 +70,27 @@ test("manager lists cards, searches, filters and paginates", async () => {
   assert.match(textOf(modal.contentEl), /No matching flashcards/);
 });
 
+test("manager bulk selection can add a tag to several cards", async () => {
+  const { app, commands, lastModal, plugin } = await boot();
+  seedDeck(app, "deck", [
+    { id: "one", question: "First", answer: "A" },
+    { id: "two", question: "Second", answer: "B" }
+  ]);
+  await commands["open-manager"].callback();
+  const manager = lastModal();
+  const selectPage = manager.contentEl.querySelector(".pdl-manager-type-head .pdl-manager-select");
+  selectPage.checked = true;
+  selectPage.onchange();
+  assert.match(textOf(manager.contentEl), /2 selected/);
+  buttonByText(manager.contentEl, "Bulk tags").onclick();
+  const modal = lastModal();
+  const inputs = modal.contentEl.querySelectorAll("input");
+  inputs[0].value = "bulk-tag";
+  await buttonByText(modal.contentEl, "Apply tags").onclick();
+  const tagged = (await plugin.getCards()).filter(card => (card.tags || []).includes("bulk-tag"));
+  assert.equal(tagged.length, 2);
+});
+
 test("manager filters by deck and tag", async () => {
   const { app, commands, lastModal } = await boot();
   seedDeck(app, "biology", [{ id: "bio", question: "Cell?", answer: "Unit", tags: ["biology"] }]);
@@ -201,6 +222,18 @@ test("statistics paginates deck performance and lapsed cards", async () => {
   assert.equal(modal.contentEl.querySelectorAll(".pdl-hard-card").length, 2);
 });
 
+test("statistics 90-day chart gets visible bars for older reviews", async () => {
+  const { app, commands, lastModal, plugin } = await boot();
+  seedDeck(app, "deck", [{ id: "old", question: "Old", answer: "A" }]);
+  plugin.settings.reviews = [{ cardId: "old", grade: 3, at: Date.now() - 50 * 86400000 }];
+  await commands["open-statistics"].callback();
+  const modal = lastModal();
+  buttonByText(modal.contentEl, "90D").onclick();
+  const bars = modal.contentEl.querySelectorAll(".pdl-activity-bar");
+  const visible = bars.filter(bar => parseFloat(bar.style.height || "0") > 2).length;
+  assert.ok(visible >= 1, `one visible bar, heights: ${bars.map(bar => bar.style.height).join(",")}`);
+});
+
 test("statistics range buttons re-render the activity window", async () => {
   const { commands, lastModal } = await boot();
   await commands["open-statistics"].callback();
@@ -245,6 +278,46 @@ test("export writes a CSV with escaped quotes and the chosen deck scope", async 
   assert.equal((download.text.match(/\n/g) || []).length, 2, "header + one card");
 });
 
+test("export supports XLSX, tab-separated TXT and Markdown", async () => {
+  const { app, commands, lastModal } = await boot();
+  seedDeck(app, "alpha", [{
+    id: "a",
+    type: "multiple-choice",
+    question: "Which number is even?",
+    answer: "4",
+    explanation: "Pick one",
+    tags: ["math"],
+    choices: ["2", "4", "6", "8"]
+  }]);
+  await commands["import-export"].callback();
+  const modal = lastModal();
+  const [format, deck] = modal.contentEl.querySelectorAll("select");
+  deck.value = "all";
+  assert.equal(modal.cards.length, 1, "one exported card");
+  assert.ok(format, "export format select");
+  let download = null;
+  modal.downloadFile = (name, data, mime) => { download = { name, data, mime }; };
+
+  format.value = "xlsx";
+  assert.equal(format.value, "xlsx");
+  buttonByText(modal.contentEl, "Download Export File").onclick();
+  assert.equal(download.name, "pdl-flashcards-export.xlsx");
+  assert.match(download.mime, /spreadsheetml/);
+  assert.ok(download.data.length > 200, "XLSX zip produced");
+
+  format.value = "txt";
+  buttonByText(modal.contentEl, "Download Export File").onclick();
+  assert.equal(download.name, "pdl-flashcards-export.txt");
+  assert.match(download.data, /Question\tAnswer\tType/);
+  assert.match(download.data, /Which number is even\?/);
+
+  format.value = "md";
+  buttonByText(modal.contentEl, "Download Export File").onclick();
+  assert.equal(download.name, "pdl-flashcards-export.md");
+  assert.match(download.data, /^\| Question \| Answer \|/);
+  assert.match(download.data, /Which number is even\?/);
+});
+
 test("import parses CSV and creates a deck note", async () => {
   const { app, commands, lastModal, plugin } = await boot();
   await commands["import-export"].callback();
@@ -259,6 +332,53 @@ test("import parses CSV and creates a deck note", async () => {
   assert.match(cards[0].file.path, /Imported Deck\.md$/);
   const raw = app.vault.files.get(cards[0].file.path);
   assert.match(raw, /generated_by: import/);
+});
+
+test("the selected import template controls the card type", async () => {
+  const { commands, lastModal, plugin } = await boot();
+  await commands["import-export"].callback();
+  const modal = lastModal();
+  buttonByText(modal.contentEl, "Import Cards").onclick();
+  const format = modal.contentEl.querySelector(".pdl-import-format");
+  format.value = "mcq";
+  const textarea = modal.contentEl.querySelectorAll("textarea")[0];
+  textarea.value = "Question,Answer,Type,Explanation,Tags,Choice A,Choice B,Choice C,Choice D\nWhich number is even?,4,,Pick one,math,2,4,6,8\n";
+  await modal.contentEl.querySelectorAll(".mod-cta")[0].onclick();
+  const cards = await plugin.getCards();
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0].type, "multiple-choice", "blank Type column follows the selected template");
+  assert.deepEqual(cards[0].choices, ["2", "4", "6", "8"]);
+});
+
+test("basic and cloze templates import their selected type", async () => {
+  const cases = [
+    ["basic", "Question,Answer,Type,Explanation,Tags\nWhat is 2+2?,4,,math,math\n", "basic"],
+    ["cloze", "Question,Answer,Type,Explanation,Tags\nThe {{c1::mitochondria}} is the powerhouse.,,cloze,Cell biology,biology\n", "cloze"]
+  ];
+  for (const [format, text, expected] of cases) {
+    const { commands, lastModal, plugin } = await boot();
+    await commands["import-export"].callback();
+    const modal = lastModal();
+    buttonByText(modal.contentEl, "Import Cards").onclick();
+    modal.contentEl.querySelector(".pdl-import-format").value = format;
+    modal.contentEl.querySelectorAll("textarea")[0].value = text;
+    await modal.contentEl.querySelectorAll(".mod-cta")[0].onclick();
+    const cards = await plugin.getCards();
+    assert.equal(cards.length, 1, `${format} card imported`);
+    assert.equal(cards[0].type, expected);
+    if (format === "cloze") assert.equal(cards[0].answer, "mitochondria");
+  }
+});
+
+test("an invalid multiple-choice import is rejected instead of becoming basic", async () => {
+  const { commands, lastModal, plugin } = await boot();
+  await commands["import-export"].callback();
+  const modal = lastModal();
+  buttonByText(modal.contentEl, "Import Cards").onclick();
+  modal.contentEl.querySelector(".pdl-import-format").value = "mcq";
+  modal.contentEl.querySelectorAll("textarea")[0].value = "Question,Answer,Type,Explanation,Tags,Choice A,Choice B,Choice C,Choice D\nQ,A,,,,,,\n";
+  await modal.contentEl.querySelectorAll(".mod-cta")[0].onclick();
+  assert.equal((await plugin.getCards()).length, 0);
 });
 
 test("import parses JSON payloads and reports unusable data", async () => {
@@ -732,7 +852,12 @@ test("custom study filters by lapses, tag and deck then starts a cram session", 
     { id: "b", question: "B", answer: "B", tags: ["dev"] },
     { id: "c", question: "C", answer: "C", tags: ["ops"] }
   ]);
-  plugin.settings.schedule = { a: { interval: 1, lapses: 2, due: 0 } };
+  plugin.settings.schedule = {
+    a: { interval: 1, lapses: 2, due: 0 },
+    b: { interval: 1, due: 0, lastGrade: 2 },
+    c: { interval: 1, due: 0, lastGrade: 3 }
+  };
+  plugin.settings.reviews = [{ cardId: "c", grade: 2, at: Date.now() }];
   const started = [];
   plugin.getView = () => ({ startSession(pool, forceAll) { started.push({ pool, forceAll }); } });
 
@@ -746,6 +871,23 @@ test("custom study filters by lapses, tag and deck then starts a cram session", 
   buttonByText(modal.contentEl, "Start Custom Session").onclick();
   assert.deepEqual(started.at(-1).pool.map(card => card.id), ["a"]);
   assert.equal(started.at(-1).forceAll, true);
+
+  modal.mode = "by_rating";
+  modal.selectedGrade = 2;
+  modal.ratingScope = "latest";
+  modal.render();
+  buttonByText(modal.contentEl, "Start Custom Session").onclick();
+  assert.deepEqual(started.at(-1).pool.map(card => card.id), ["b"], "latest Hard rating");
+
+  await commands["custom-study"].callback();
+  await tick();
+  const byAnyRating = lastModal();
+  byAnyRating.mode = "by_rating";
+  byAnyRating.selectedGrade = 2;
+  byAnyRating.ratingScope = "any";
+  byAnyRating.render();
+  buttonByText(byAnyRating.contentEl, "Start Custom Session").onclick();
+  assert.deepEqual(started.at(-1).pool.map(card => card.id), ["c"], "ever rated Hard");
 
   await commands["custom-study"].callback();
   await tick();

@@ -59,6 +59,63 @@ test("view reports its Obsidian identity", async () => {
   assert.equal(view.getIcon(), "brain-circuit");
 });
 
+test("bulk card and deck operations preserve content", async () => {
+  const { app, plugin } = await makeView();
+  seedDeck(app, "06 - Flashcards/source.md", [{ id: "a", question: "Alpha", answer: "A" }]);
+  seedDeck(app, "06 - Flashcards/target.md", [{ id: "b", question: "Beta", answer: "B" }]);
+  const cards = await plugin.getCards();
+  const source = cards.find(card => card.id === "a");
+  const target = cards.find(card => card.id === "b");
+
+  await plugin.bulkUpdateTags([source], ["new-tag"], []);
+  assert.deepEqual((await plugin.getCards()).find(card => card.id === "a").tags, ["new-tag"]);
+
+  await plugin.moveCards([source], target.file);
+  const moved = await plugin.getCards();
+  assert.equal(moved.some(card => card.id === "a" && card.file.path.endsWith("target.md")), true);
+
+  const empty = await plugin.createEmptyDeck("Empty deck");
+  assert.equal(app.vault.files.has(empty.path), true);
+  assert.equal((await plugin.getCards()).some(card => card.file.path === empty.path), false);
+
+  const mergeTarget = await plugin.createEmptyDeck("Merge target");
+  await plugin.mergeDecks(target.file, mergeTarget);
+  assert.equal((await plugin.getCards()).some(card => card.id === "b" && card.file.path === mergeTarget.path), true);
+  assert.equal(app.vault.files.has(target.file.path), false);
+});
+
+test("decks can be archived and restored", async () => {
+  const { app, plugin } = await makeView();
+  seedDeck(app, "06 - Flashcards/archive-me.md", [{ id: "archived-card", question: "Q", answer: "A" }]);
+  const file = (await plugin.getCards())[0].file;
+  await plugin.archiveDeck(file, true);
+  assert.equal((await plugin.getCards()).some(card => card.id === "archived-card"), false);
+  assert.equal((await plugin.getArchivedDecks()).length, 1);
+  await plugin.archiveDeck(file, false);
+  assert.equal((await plugin.getCards()).some(card => card.id === "archived-card"), true);
+  assert.equal((await plugin.getArchivedDecks()).length, 0);
+});
+
+test("deck notes can be renamed and deleted from the dashboard", async () => {
+  const { app, plugin, view } = await makeView();
+  seedDeck(app, "06 - Flashcards/original.md", [{ id: "deck-card", question: "Q", answer: "A" }]);
+  await view.refresh();
+  const card = (await plugin.getCards())[0];
+  plugin.settings.schedule[card.id] = { interval: 1, due: 0 };
+  plugin.settings.reviews = [{ cardId: card.id, grade: 3, at: Date.now() }];
+
+  await plugin.renameDeck(card.file, "Renamed deck");
+  assert.equal(app.vault.files.has("06 - Flashcards/Renamed deck.md"), true);
+  assert.equal(app.vault.files.has("06 - Flashcards/original.md"), false);
+  const renamed = (await plugin.getCards())[0];
+  assert.equal(renamed.deckTitle, "Renamed deck");
+
+  await plugin.deleteDeck(renamed.file);
+  assert.equal(app.vault.files.has("06 - Flashcards/Renamed deck.md"), false);
+  assert.equal(plugin.settings.schedule[card.id], undefined);
+  assert.equal(plugin.settings.reviews.length, 0);
+});
+
 test("dashboard lists decks and the search box filters them", async () => {
   const { app, view } = await makeView({}, {
     "inbox/src.md": "# Source"
@@ -169,6 +226,26 @@ test("startSession takes due cards in due order, capped by sessionSize", async (
   assert.equal(view.revealed, false);
 });
 
+test("daily new and review limits bound a normal session", async () => {
+  const { plugin, view } = await makeView();
+  plugin.settings.sessionSize = 10;
+  plugin.settings.dailyNewLimit = 1;
+  plugin.settings.dailyReviewLimit = 0;
+  const fresh = [cardObj("fresh-a"), cardObj("fresh-b")];
+  view.startSession(fresh);
+  assert.deepEqual(view.session.map(card => card.id), ["fresh-a"], "only one new card is allowed");
+
+  const now = Date.now();
+  const due = [cardObj("due-a"), cardObj("due-b")];
+  plugin.settings.schedule = {
+    "due-a": { interval: 2, due: now - DAY, reps: 3 },
+    "due-b": { interval: 2, due: now - DAY, reps: 3 }
+  };
+  plugin.settings.dailyReviewLimit = 0;
+  view.startSession(due);
+  assert.equal(view.session.length, 0, "zero review allowance blocks due cards");
+});
+
 test("startSession falls back to the soonest cards when none are due", async () => {
   const { plugin, view } = await makeView();
   plugin.settings.sessionSize = 2;
@@ -181,6 +258,21 @@ test("startSession falls back to the soonest cards when none are due", async () 
   };
   view.startSession(cards);
   assert.deepEqual(view.session.map(card => card.id), ["b", "c"]);
+});
+
+test("a review session can be resumed after leaving the dashboard", async () => {
+  const { view } = await makeView();
+  const cards = [cardObj("a"), cardObj("b"), cardObj("c")];
+  view.startSession(cards);
+  view.cards = cards;
+  view.index = 1;
+  view.saveResumeProgress();
+  view.renderDashboard();
+  const banner = view.containerEl.querySelector(".pdl-resume-banner");
+  assert.ok(banner, "resume banner rendered");
+  banner.querySelector(".mod-cta").onclick();
+  assert.equal(view.session.length, 3);
+  assert.equal(view.index, 1);
 });
 
 test("forceAll includes future cards but still excludes suspended and buried cards", async () => {

@@ -18,6 +18,8 @@ class FlashcardCustomStudyModal extends Modal {
     this.mode = "cram_all";
     this.selectedTag = "";
     this.selectedDeckPath = "";
+    this.selectedGrade = 2;
+    this.ratingScope = "latest";
   }
 
   async onOpen() {
@@ -39,10 +41,29 @@ class FlashcardCustomStudyModal extends Modal {
     [
       ["cram_all", L("Cram All Cards (Ignore Due dates)", "Luyện toàn bộ (bỏ qua ngày đến hạn)")],
       ["lapsed", L("Difficult Cards (Lapses > 0)", "Thẻ khó (đã quên > 0 lần)")],
+      ["by_rating", L("Filter by Rating (Again / Hard / Good / Easy)", "Lọc theo mức đánh giá (Again / Hard / Good / Easy)")],
       ["by_tag", L("Filter by Tag", "Lọc theo tag")]
     ].forEach(([val, label]) => modeSelect.createEl("option", { text: label, attr: { value: val } }));
     modeSelect.value = this.mode;
     modeSelect.onchange = () => { this.mode = modeSelect.value; this.render(); };
+
+    if (this.mode === "by_rating") {
+      const gradeLabel = root.createEl("label", { cls: "pdl-editor-field" });
+      gradeLabel.createSpan({ text: L("Rating", "Mức đánh giá") });
+      const gradeSelect = gradeLabel.createEl("select", { cls: "pdl-edit-type pdl-study-rating" });
+      [[1, L("Again", "Lại")], [2, L("Hard", "Khó")], [3, L("Good", "Tốt")], [4, L("Easy", "Dễ")]]
+        .forEach(([value, label]) => gradeSelect.createEl("option", { text: label, attr: { value: String(value) } }));
+      gradeSelect.value = String(this.selectedGrade);
+      gradeSelect.onchange = () => { this.selectedGrade = Number(gradeSelect.value); };
+
+      const scopeLabel = root.createEl("label", { cls: "pdl-editor-field" });
+      scopeLabel.createSpan({ text: L("Match", "Cách khớp") });
+      const scopeSelect = scopeLabel.createEl("select", { cls: "pdl-edit-type pdl-study-rating-scope" });
+      [["latest", L("Latest rating", "Đánh giá gần nhất")], ["any", L("Any review with this rating", "Từng được đánh giá mức này")]]
+        .forEach(([value, label]) => scopeSelect.createEl("option", { text: label, attr: { value } }));
+      scopeSelect.value = this.ratingScope;
+      scopeSelect.onchange = () => { this.ratingScope = scopeSelect.value; };
+    }
 
     if (this.mode === "by_tag") {
       const allTags = new Set();
@@ -77,6 +98,16 @@ class FlashcardCustomStudyModal extends Modal {
       }
       if (this.mode === "lapsed") {
         pool = pool.filter(c => (this.plugin.settings.schedule[c.id]?.lapses || 0) > 0);
+      } else if (this.mode === "by_rating") {
+        const grade = Number(this.selectedGrade);
+        if (this.ratingScope === "any") {
+          const rated = new Set((this.plugin.settings.reviews || [])
+            .filter(review => Number(review.grade) === grade)
+            .map(review => review.cardId));
+          pool = pool.filter(c => rated.has(c.id));
+        } else {
+          pool = pool.filter(c => Number(this.plugin.settings.schedule[c.id]?.lastGrade) === grade);
+        }
       } else if (this.mode === "by_tag") {
         if (!this.selectedTag) { new Notice(L("Please select a tag first.", "Hãy chọn một tag trước.")); return; }
         pool = pool.filter(c => (c.tags || []).includes(this.selectedTag));

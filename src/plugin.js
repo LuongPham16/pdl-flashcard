@@ -32,6 +32,12 @@ class PDLFlashcardPlugin extends Plugin {
       this.settings.outputFolder ||= "06 - Flashcards";
       this.settings.sourceFolders ||= [...DEFAULTS.sourceFolders];
     }
+    const legacySourceFolders = ["00 - Inbox", "02 - Projects", "03 - Area", "04 - Journal", "05 - Tasks", "99 - Archive"];
+    if (Array.isArray(this.settings.sourceFolders)
+      && this.settings.sourceFolders.length === legacySourceFolders.length
+      && this.settings.sourceFolders.every((folder, index) => folder === legacySourceFolders[index])) {
+      this.settings.sourceFolders = [];
+    }
     this.settings.schedule ||= {};
     this.settings.reviews ||= [];
     this.settings.streakDates ||= [];
@@ -39,9 +45,12 @@ class PDLFlashcardPlugin extends Plugin {
     this.settings.selectedPromptId ||= "default";
     this.settings.language = this.settings.language === "vi" ? "vi" : "en";
     this.settings.decksPerPage = Math.max(1, Math.min(5, Number(this.settings.decksPerPage) || 5));
-    // The session-size control was replaced by per-type card counts; keep review
-    // sessions bounded at the previous default instead of a hidden stale value.
-    this.settings.sessionSize = DEFAULTS.sessionSize;
+    this.settings.sessionSize = Math.max(1, Math.min(200, Number(this.settings.sessionSize) || DEFAULTS.sessionSize));
+    this.settings.dailyNewLimit = Math.max(0, Math.min(999, Number(this.settings.dailyNewLimit ?? DEFAULTS.dailyNewLimit)));
+    this.settings.dailyReviewLimit = Math.max(0, Math.min(999, Number(this.settings.dailyReviewLimit ?? DEFAULTS.dailyReviewLimit)));
+    this.settings.learningSteps = String(this.settings.learningSteps ?? DEFAULTS.learningSteps)
+      .split(",").map(value => Number(value)).filter(value => Number.isFinite(value) && value > 0)
+      .slice(0, 6).join(",") || DEFAULTS.learningSteps;
     for (const key of ["defaultBasicCount", "defaultMcqCount", "defaultClozeCount"]) {
       this.settings[key] = Math.max(0, Math.min(30, Number(this.settings[key]) || 0));
     }

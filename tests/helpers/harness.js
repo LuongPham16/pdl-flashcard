@@ -207,6 +207,15 @@ export function createVault(initial = {}) {
       files.set(p, data);
       return fileOf(p);
     },
+    async rename(file, newPath) {
+      const data = files.get(file.path);
+      files.delete(file.path);
+      files.set(newPath, data);
+      file.path = newPath;
+      file.basename = newPath.split("/").pop().replace(/\.md$/, "");
+      return file;
+    },
+    async delete(file) { files.delete(file.path); },
     async createFolder(p) { folders.add(p); },
     adapter: {
       async exists(p) { return files.has(p) || folders.has(p); },

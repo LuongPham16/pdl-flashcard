@@ -33,6 +33,14 @@ async function boot({ saved = null, files = { "inbox/a.md": "# A" }, backup = fa
   return { app, plugin, commands, events, processors, tabs };
 }
 
+test("empty source folders allow every Markdown note outside excluded folders", async () => {
+  const { app, plugin } = await boot({ files: { "inbox/a.md": "# A", "notes/b.md": "# B" } });
+  plugin.settings.sourceFolders = [];
+  assert.equal(plugin.isConfiguredSource(app.vault.getAbstractFileByPath("notes/b.md")), true);
+  plugin.settings.sourceFolders = ["inbox"];
+  assert.equal(plugin.isConfiguredSource(app.vault.getAbstractFileByPath("notes/b.md")), false);
+});
+
 test("onload migrates old settings and deep-merges the AI block", async () => {
   const { plugin } = await boot({
     saved: {

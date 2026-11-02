@@ -4,14 +4,15 @@
 highlighted passage — into editable flashcard decks, then review them with adaptive
 spaced repetition.
 
-> **Version 1.0.7** · requires Obsidian **1.13.0+** · desktop and mobile · submitted to
+> **Version 1.0.8** · requires Obsidian **1.13.0+** · desktop and mobile · submitted to
 > the Obsidian community plugin directory.
 
 ## Highlights
 
 - **Draft cards with AI** from a whole note, a highlighted excerpt, or a folder of notes.
-- **Review with spaced repetition** — Again / Hard / Good / Easy, relearning, undo,
-  suspend, bury, leech detection and custom study.
+- **Review with spaced repetition** — Again / Hard / Good / Easy, learning steps, daily
+  limits, resume, relearning, undo, suspend, bury, leech detection and custom study by
+  deck, tag, lapses or last/any rating.
 - **Three card types** — basic Q&A, four-choice MCQ and cloze deletion.
 - **Type-the-answer cloze** with optional click-to-reveal letter hints.
 - **Images** in questions, answers and explanations, rendered as centred blocks.
@@ -23,8 +24,8 @@ spaced repetition.
 
 1. Install the plugin (see [Install](#install)).
 2. Open **Settings → PDL Flashcard → AI**, choose a provider and paste an API key.
-3. Open **Settings → PDL Flashcard → General** and confirm **Source folders** and
-   **Flashcard folder**.
+3. Open **Settings → PDL Flashcard → General** and confirm **Flashcard folder**.
+   **Source folders** can stay empty on a fresh install to read every folder.
 4. Open a note and run **PDL Flashcard: Create flashcards from active note**, or use
    the brain icon in the ribbon. Assign your own hotkey in *Settings → Hotkeys* if
    you want one.
@@ -42,7 +43,8 @@ Open a source note and run **Create flashcards from active note**. The Studio le
 - create reverse cards;
 - edit every draft card before saving.
 
-Only notes inside **Source folders** are offered.
+Only notes inside **Source folders** are offered. If Source folders is empty, every
+Markdown note is eligible except the flashcard folder and excluded folders.
 
 ### With AI from a highlighted passage
 
@@ -54,7 +56,7 @@ Only the excerpt is sent to the provider.
 Open **Flashcard Studio → Create decks from a folder**, or run
 **PDL Flashcard: Create decks from a folder**:
 
-1. Pick a folder from the configured source folders.
+1. Pick any folder containing source notes (empty Source folders means every folder).
 2. Keep **Select all notes**, or tick individual notes.
 3. Set counts / prompt, then **Generate**.
 
@@ -103,6 +105,12 @@ A right-click **Import selection as flashcards…** action opens the same dialog
 with the selection, with the current note preselected. Format errors are only reported
 when you actually press **Import Cards**.
 
+### Export
+
+**Export** downloads the whole library or one selected deck as **CSV**, **XLSX**, tab-separated
+**TXT**, a **Markdown table**, or **JSON**. The XLSX, TXT and Markdown outputs include the
+card type, choices, tags and deck title, so they can be re-imported.
+
 ## Card types
 
 - **Basic** — prompt → answer.
@@ -113,11 +121,14 @@ when you actually press **Import Cards**.
 ## Reviewing
 
 - **Again / Hard / Good / Easy** with per-grade interval growth.
+- Configurable learning steps for new cards, daily new/review limits, session size and
+  resumable sessions.
 - Forgotten cards can return once more in the same session (configurable).
 - **Undo** a grade with `Ctrl/Cmd+Z` or the undo button — schedule, log and streak roll back.
 - **Suspend** removes a card from every queue; **Bury** hides it until tomorrow.
 - **Leech detection** auto-suspends a card after repeated lapses.
-- **Custom study** by deck, tag or lapsed cards; keyboard-first controls.
+- **Custom study** by deck, tag, lapsed cards or latest/any rating (Again, Hard, Good,
+  Easy); keyboard-first controls.
 - **Read aloud** from the card header. Cloze prompts speak masked blanks before reveal;
   MCQ reveals read every choice and the correct answer.
 
@@ -135,6 +146,8 @@ when you actually press **Import Cards**.
 - Statistics for retention, rating distribution, workload and hardest cards; deck and
   lapsed-card lists are paginated (6 decks and 5 cards per page).
 - Card manager with search, type filter, deck filter, tag filter, edit, suspend and delete.
+- Bulk manager actions: select cards, add/remove tags, move decks, suspend, delete, find
+  duplicate questions, create an empty deck, merge decks and archive/restore decks.
 
 ## AI providers
 
@@ -177,11 +190,15 @@ when you actually press **Import Cards**.
 **General**
 
 - Language (English / Tiếng Việt), decks per page (1–5, max 5 per page)
-- Flashcard folder, source folders, excluded folders
+- Flashcard folder, source folders (empty = all folders), excluded folders
 - Default Q&A / MCQ / cloze counts and reverse-card default
 - Read-aloud voice and speed
-- Relearning, leech threshold, interval cap
 - Heatmap palette and cell shape
+
+**Study**
+
+- Learning steps, cards per session, daily new/review limits
+- Relearning, leech threshold, interval cap
 
 **AI**
 
@@ -192,7 +209,7 @@ when you actually press **Import Cards**.
 
 **Feedback**
 
-- Feedback form / email link.
+- Contact cards: Telegram **@luongpd**, GitHub Issues and copyable support information.
 
 ## Commands and menus
 
@@ -253,7 +270,7 @@ npm run deploy       # build + copy using .deploy.json
 ```
 
 The test suite runs against the **built bundle**, so rebuild after changing `src/` or
-`styles.css`. Current suite: **158 tests**.
+`styles.css`. Current suite: **172 tests**.
 
 ### Project layout
 

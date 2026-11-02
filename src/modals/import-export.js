@@ -11,6 +11,7 @@ import { normalizeCardText } from "../utils.js";
 import { L } from "../i18n.js";
 import { DELIMITER_OPTIONS, markdownToImportText, parseImportCards, sheetRowsToCsv } from "../import-parse.js";
 import readXlsxFile from "read-excel-file/browser";
+import { buildXlsx } from "../xlsx-write.js";
 
 const IMPORT_SEPARATORS = {
   comma: ",",
@@ -104,6 +105,9 @@ class FlashcardExportImportModal extends Modal {
     formatLabel.createSpan({ text: L("Export Format", "Định dạng xuất") });
     const formatSelect = formatLabel.createEl("select", { cls: "pdl-edit-type" });
     formatSelect.createEl("option", { text: L("CSV (Anki & Excel compatible)", "CSV (tương thích Anki & Excel)"), attr: { value: "csv" } });
+    formatSelect.createEl("option", { text: L("XLSX (Excel workbook)", "XLSX (bảng tính Excel)"), attr: { value: "xlsx" } });
+    formatSelect.createEl("option", { text: L("TXT (tab-separated)", "TXT (phân cách bằng tab)"), attr: { value: "txt" } });
+    formatSelect.createEl("option", { text: L("Markdown table", "Bảng Markdown"), attr: { value: "md" } });
     formatSelect.createEl("option", { text: L("JSON (PDL Native format)", "JSON (định dạng gốc PDL)"), attr: { value: "json" } });
 
     const deckLabel = parent.createEl("label", { cls: "pdl-editor-field" });
@@ -124,6 +128,16 @@ class FlashcardExportImportModal extends Modal {
       if (!targetCards.length) { new Notice(L("No cards to export.", "Không có thẻ nào để xuất.")); return; }
 
       const format = formatSelect.value;
+      const headers = ["Question", "Answer", "Type", "Explanation", "Tags", "Choice A", "Choice B", "Choice C", "Choice D", "DeckTitle"];
+      const rows = targetCards.map(card => [
+        card.question || "",
+        card.answer || "",
+        card.type || "basic",
+        card.explanation || "",
+        (card.tags || []).join(", "),
+        ...Array.from({ length: 4 }, (_, index) => card.choices?.[index] || ""),
+        card.deckTitle || ""
+      ]);
       if (format === "csv") {
         let csv = "Question,Answer,Type,Explanation,Tags,DeckTitle\n";
         targetCards.forEach(c => {
@@ -136,6 +150,22 @@ class FlashcardExportImportModal extends Modal {
           csv += `${q},${a},${type},${exp},${tags},${deck}\n`;
         });
         this.downloadFile("pdl-flashcards-export.csv", csv, "text/csv");
+      } else if (format === "xlsx") {
+        const workbook = buildXlsx([headers, ...rows]);
+        this.downloadFile("pdl-flashcards-export.xlsx", workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      } else if (format === "txt") {
+        const text = [headers, ...rows]
+          .map(row => row.map(cell => String(cell).replace(/\t/g, " ").replace(/\r?\n/g, " ")).join("\t"))
+          .join("\n");
+        this.downloadFile("pdl-flashcards-export.txt", text, "text/plain");
+      } else if (format === "md") {
+        const mdCell = value => String(value ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>");
+        const markdown = [
+          `| ${headers.map(mdCell).join(" | ")} |`,
+          `| ${headers.map(() => "---").join(" | ")} |`,
+          ...rows.map(row => `| ${row.map(mdCell).join(" | ")} |`)
+        ].join("\n");
+        this.downloadFile("pdl-flashcards-export.md", markdown, "text/markdown");
       } else {
         const json = JSON.stringify(targetCards.map(c => ({
           id: c.id, type: c.type, question: c.question, answer: c.answer,
@@ -227,12 +257,25 @@ class FlashcardExportImportModal extends Modal {
     const textarea = contentLabel.createEl("textarea", { attr: { rows: "8", placeholder: "Question,Answer,Type,Explanation\nWhat is Obsidian?,A knowledge base software,basic," } });
     textarea.value = this.initialText;
 
+    const forcedType = () => formatSelect.value === "mcq" ? "multiple-choice" : (formatSelect.value || "");
+    const applySelectedType = cards => forcedType() ? cards.map(card => ({ ...card, type: forcedType() })) : cards;
+    const invalidMcqCount = cards => cards.filter(card => {
+      if (card.type !== "multiple-choice") return false;
+      const choices = (card.choices || []).map(choice => choice.trim()).filter(Boolean);
+      const answer = String(card.answer || "").trim();
+      return choices.length !== 4 || !choices.some(choice => choice.toLowerCase() === answer.toLowerCase());
+    }).length;
     const preview = parent.createDiv({ cls: "pdl-import-preview" });
     const updatePreview = () => {
       try {
-        const parsed = parseImportCards(textarea.value, delimiterSelect.value);
+        const parsed = parseImportCards(textarea.value, delimiterSelect.value, forcedType());
+        const cards = applySelectedType(parsed.cards);
         const label = parsed.delimiter === "json" ? "JSON" : (delimiterLabels[parsed.delimiter] || parsed.delimiter || "—");
-        preview.setText(L(`${parsed.cards.length} cards ready · ${label}`, `${parsed.cards.length} thẻ sẵn sàng · ${label}`));
+        const invalid = invalidMcqCount(cards);
+        preview.setText(L(
+          `${cards.length} cards ready · ${label}${invalid ? ` · ${invalid} need 4 choices` : ""}`,
+          `${cards.length} thẻ sẵn sàng · ${label}${invalid ? ` · ${invalid} thẻ cần đủ 4 lựa chọn` : ""}`
+        ));
       } catch (error) {
         preview.setText(L(`Invalid data: ${error.message}`, `Dữ liệu chưa hợp lệ: ${error.message}`));
       }
@@ -297,9 +340,13 @@ class FlashcardExportImportModal extends Modal {
 
       let cards = [];
       try {
-        cards = parseImportCards(text, delimiterSelect.value).cards;
+        cards = applySelectedType(parseImportCards(text, delimiterSelect.value, forcedType()).cards);
       } catch (e) {
         new Notice(L("Failed to parse import data: " + e.message, "Không đọc được dữ liệu nhập: " + e.message));
+        return;
+      }
+      if (invalidMcqCount(cards)) {
+        new Notice(L("Each multiple-choice card needs exactly 4 choices and the answer must match one of them.", "Mỗi thẻ trắc nghiệm cần đúng 4 lựa chọn và đáp án phải trùng một lựa chọn."));
         return;
       }
 

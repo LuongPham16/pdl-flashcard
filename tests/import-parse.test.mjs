@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { zipSync, strToU8 } from "fflate";
 import readXlsxFile from "read-excel-file/browser";
 import { markdownToImportText, parseImportCards, detectDelimiter, sheetRowsToCsv } from "../src/import-parse.js";
+import { buildXlsx } from "../src/xlsx-write.js";
 
 function makeXlsx(rows) {
   const xml = value => strToU8(value);
@@ -84,6 +85,13 @@ test("cloze answer is derived when the answer column is empty", () => {
   assert.equal(cards[0].answer, "mitochondria");
 });
 
+test("cloze markers do not make auto-detect choose the Anki delimiter", () => {
+  const { cards, delimiter } = parseImportCards("Question,Answer,Type\n\"The {{c1::mitochondria}} is the powerhouse.\",,cloze", "auto");
+  assert.equal(delimiter, "comma");
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0].answer, "mitochondria");
+});
+
 test("risk 6b: a single Front/Back card is not mistaken for a header", () => {
   const { cards } = parseImportCards("Front Back", "space");
   assert.equal(cards.length, 1);
@@ -127,6 +135,12 @@ test("fenced card data in a Markdown note is extracted", () => {
   const { cards } = parseImportCards(markdownToImportText(markdown), "auto");
   assert.equal(cards.length, 1);
   assert.equal(cards[0].question, "What is 2+2?");
+});
+
+test("XLSX export round-trips through the XLSX reader", async () => {
+  const workbook = buildXlsx([["Question", "Answer"], ["What is 2+2?", "4"]]);
+  const sheets = await readXlsxFile(workbook);
+  assert.deepEqual(sheets[0].data, [["Question", "Answer"], ["What is 2+2?", "4"]]);
 });
 
 test("XLSX rows become importable cards", async () => {

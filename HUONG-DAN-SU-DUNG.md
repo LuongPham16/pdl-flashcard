@@ -3,7 +3,7 @@
 **PDL Flashcard** giúp bạn tạo và ôn tập flashcard ngay trong Obsidian theo phương pháp
 lặp lại ngắt quãng. Plugin có thể nhờ AI đọc note để soạn thẻ nháp, hoặc bạn tự viết thẻ.
 
-> Phiên bản **1.0.7**. Yêu cầu Obsidian **1.13.0+**. Giao diện hỗ trợ tiếng Anh và tiếng Việt.
+> Phiên bản **1.0.8**. Yêu cầu Obsidian **1.13.0+**. Giao diện hỗ trợ tiếng Anh và tiếng Việt.
 
 ## 1. Cài đặt
 
@@ -19,13 +19,19 @@ Vào **Settings → PDL Flashcard**.
 
 - **Language**: English hoặc Tiếng Việt.
 - **Flashcard folder**: nơi lưu các note deck, mặc định `06 - Flashcards`.
-- **Source folders**: các thư mục được phép đọc note nguồn.
+- **Source folders**: các thư mục được phép đọc note nguồn. **Để trống để dùng mọi folder**; nút **Use all folders** xóa nhanh danh sách.
 - **Excluded folders**: thư mục bị loại, ví dụ `_agent`, template.
 - **Cards per flashcard type**: số thẻ Q&A / MCQ / Cloze mặc định khi mở AI builder.
 - **Create reverse cards by default**: bật sẵn thẻ 2 chiều.
 - **Read aloud (TTS)**: chọn giọng và tốc độ đọc.
 
-Chỉ note trong **Source folders** mới xuất hiện ở các ô chọn note/folder.
+Chỉ note trong **Source folders** mới xuất hiện ở các ô chọn note/folder. Nếu để trống, mọi note Markdown đều được dùng, trừ folder flashcard và các folder bị loại.
+
+### Tab Study
+
+- Learning steps, số thẻ mỗi phiên.
+- Giới hạn thẻ mới / lượt ôn mỗi ngày.
+- Hiện lại thẻ quên, leech threshold, interval tối đa.
 
 ### Tab AI
 
@@ -89,7 +95,7 @@ Mở dashboard bằng icon brain trên ribbon hoặc command
 **PDL Flashcard: Open learning dashboard**.
 
 - **Quick Review**: thẻ đến hạn/mới.
-- **Custom Study**: ôn theo deck, tag hoặc thẻ bị quên.
+- **Custom Study**: ôn theo deck, tag, thẻ bị quên hoặc mức đánh giá gần nhất / từng được đánh giá (Again, Hard, Good, Easy).
 - **Again / Hard / Good / Easy**: tự đánh giá mức nhớ.
 - **Ctrl/Cmd + Z** hoặc nút hoàn tác: hủy lần đánh giá vừa rồi.
 - **Suspend**: ẩn thẻ khỏi mọi phiên.
@@ -120,6 +126,9 @@ Mở dashboard bằng icon brain trên ribbon hoặc command
 - Thư viện deck: tối đa 5 deck/trang, phân trang và nhảy trực tiếp đến trang bất kỳ.
 - **Statistics**: retention, phân bố điểm, tải theo deck, thẻ khó. Danh sách deck và thẻ lỗi được phân trang (6 deck/trang, 5 thẻ/trang).
 - **Manager**: tìm/lọc theo loại thẻ, deck, tag; sửa/suspend/xóa thẻ.
+- **Bulk**: chọn nhiều thẻ để thêm/xóa tag, chuyển deck, suspend, xóa, tìm câu hỏi trùng.
+- **Deck**: tạo deck rỗng, gộp deck, lưu trữ/khôi phục deck; xóa/đổi tên deck.
+- **Review**: learning steps, giới hạn thẻ mới/lượt ôn mỗi ngày, số thẻ mỗi phiên và tiếp tục phiên đang dở.
 
 ## 7. Import / Export
 
@@ -132,6 +141,8 @@ Hỗ trợ dán text hoặc chọn file ngoài:
 - File: `.csv`, `.tsv`, `.txt`, `.json`, `.md`, `.xlsx` / `.xlsm`
 - 3 mẫu chuẩn: **Basic Q&A**, **Multiple choice**, **Cloze**
 - Mẫu tự đổi số cột theo loại thẻ và đổi dấu phân cách theo delimiter đã chọn.
+- Loại mẫu đã chọn sẽ ép đúng loại thẻ, kể cả khi cột `Type` để trống.
+- Multiple choice cần đúng 4 lựa chọn và đáp án phải khớp một lựa chọn.
 
 Text phân cách:
 
@@ -158,16 +169,23 @@ và note đích điền sẵn; bạn sửa delimiter/nội dung rồi mới Impo
 
 ### Export
 
-Xuất CSV hoặc JSON theo toàn bộ thư viện hoặc từng deck.
+Xuất **CSV, XLSX, TXT (tab), Markdown hoặc JSON** theo toàn bộ thư viện hoặc từng deck.
+Các định dạng XLSX/TXT/Markdown có đủ loại thẻ, lựa chọn, tag và tên deck để có thể nhập lại.
 
-## 8. Dữ liệu và sao lưu
+## 8. Feedback
+
+- **Telegram @luongpd** — nhanh nhất: https://t.me/luongpd
+- **GitHub Issues** — báo lỗi có bước tái hiện hoặc đề xuất tính năng.
+- **Copy support info** — sao chép phiên bản plugin, Obsidian và platform.
+
+## 9. Dữ liệu và sao lưu
 
 - Deck là note Markdown trong thư mục flashcard.
 - Tiến trình học, cài đặt và API key nằm trong `data.json` của plugin.
 - Plugin tự sao lưu `data.json` vào thư mục `backups` (giữ 30 bản gần nhất).
 - `data.json` có thể chứa API key dạng plain text; hãy bảo vệ backup của vault.
 
-## 9. Lỗi thường gặp
+## 10. Lỗi thường gặp
 
 | Hiện tượng | Cách xử lý |
 | --- | --- |
@@ -179,14 +197,14 @@ Xuất CSV hoặc JSON theo toàn bộ thư viện hoặc từng deck.
 | Ảnh không hiện | Kiểm tra đường dẫn embed và file ảnh còn trong vault |
 | Import 0 thẻ | Kiểm tra delimiter và preview trước khi Import |
 
-## 10. Phím tắt và command chính
+## 11. Phím tắt và command chính
 
 - Tự gán phím tắt trong *Settings → Hotkeys* cho lệnh tạo flashcard.
 - `Ctrl/Cmd + Z` — hoàn tác lần đánh giá.
 - `Space` — hiện đáp án / thao tác chính trong phiên ôn.
 - Command Palette: gõ `PDL Flashcard` để xem toàn bộ lệnh.
 
-## 11. Ghi chú
+## 12. Ghi chú
 
 - Plugin chưa có trên community registry.
 - Cần API key hợp lệ và quota còn hiệu lực để dùng AI.
