@@ -1,5 +1,5 @@
 /** Settings UI – tabbed: General | AI */
-import { PluginSettingTab, Setting, Notice, normalizePath, requestUrl } from "obsidian";
+import { Platform, PluginSettingTab, Setting, Notice, normalizePath, requestUrl } from "obsidian";
 import { DEFAULT_AI_PROMPTS } from "./constants.js";
 import { setLanguage, L } from "./i18n.js";
 
@@ -478,15 +478,17 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
     const TELEGRAM = "https://t.me/luongpd";
     const TELEGRAM_HANDLE = "@luongpd";
     const manifest = this.plugin.manifest;
+    const platform = Platform.isMacOS ? "macOS" : Platform.isWin ? "Windows" : Platform.isLinux ? "Linux" : Platform.isMobile ? "Mobile" : "Unknown";
     const diagnostics = [
       `Plugin: PDL Flashcard v${manifest?.version ?? "?"}`,
       `Obsidian: ${this.app.version ?? "?"}`,
-      `Platform: ${navigator.platform || "?"}`
+      `Platform: ${platform}`
     ].join("\n");
 
     const hero = el.createDiv({ cls: "pdl-fb-hero" });
     hero.createDiv({ cls: "pdl-fb-emoji", text: "💌" });
-    hero.createEl("h3", { cls: "pdl-fb-title", text: L("Feedback & support", "Phản hồi & hỗ trợ") });
+    const heroTitle = new Setting(hero).setName(L("Feedback & support", "Phản hồi & hỗ trợ")).setHeading();
+    heroTitle.settingEl?.addClass("pdl-fb-title");
     hero.createEl("p", {
       text: L(
         "Pick the channel that suits you. Telegram is best for a quick question; GitHub is best for a reproducible bug or a feature request.",
@@ -498,7 +500,8 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
     const grid = el.createDiv({ cls: "pdl-fb-contact-grid" });
     const telegramCard = grid.createDiv({ cls: "pdl-fb-contact is-telegram" });
     telegramCard.createSpan({ cls: "pdl-fb-contact-kicker", text: L("FASTEST", "NHANH NHẤT") });
-    telegramCard.createEl("h4", { text: "Telegram" });
+    const telegramTitle = new Setting(telegramCard).setName("Telegram").setHeading();
+    telegramTitle.settingEl?.addClass("pdl-fb-contact-title");
     telegramCard.createEl("p", { text: L("Message me directly. Good for questions, ideas and quick bug reports.", "Nhắn trực tiếp. Phù hợp câu hỏi, ý tưởng và báo lỗi nhanh.") });
     telegramCard.createEl("strong", { cls: "pdl-fb-handle", text: TELEGRAM_HANDLE });
     const telegramBtn = telegramCard.createEl("button", { cls: "pdl-fb-telegram", text: L("Open Telegram", "Mở Telegram") });
@@ -509,7 +512,8 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
 
     const githubCard = grid.createDiv({ cls: "pdl-fb-contact is-github" });
     githubCard.createSpan({ cls: "pdl-fb-contact-kicker", text: L("BUGS & FEATURES", "LỖI & TÍNH NĂNG") });
-    githubCard.createEl("h4", { text: "GitHub Issues" });
+    const githubTitle = new Setting(githubCard).setName("GitHub Issues").setHeading();
+    githubTitle.settingEl?.addClass("pdl-fb-contact-title");
     githubCard.createEl("p", { text: L("Best for reproducible bugs, screenshots and feature requests that can be tracked.", "Phù hợp báo lỗi có bước tái hiện, ảnh chụp và đề xuất cần theo dõi.") });
     const githubBtn = githubCard.createEl("button", { cls: "pdl-fb-secondary", text: L("Open GitHub issue", "Mở issue GitHub") });
     githubBtn.onclick = () => {

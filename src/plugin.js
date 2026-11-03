@@ -128,7 +128,8 @@ class PDLFlashcardPlugin extends Plugin {
     this.applyLanguage();
     await this.ensureOutputFolder();
     this.registerView(VIEW_TYPE, leaf => new PDLFlashcardView(leaf, this));
-    this.addRibbonIcon("brain-circuit", L("Open PDL Flashcard", "Mở PDL Flashcard"), () => this.activateView());
+    const ribbonIcon = this.addRibbonIcon("brain-circuit", L("Open PDL Flashcard", "Mở PDL Flashcard"), () => this.activateView());
+    ribbonIcon?.addClass("pdl-ribbon-icon");
     this.addCommand({ id: "open", name: L("Open learning dashboard", "Mở bảng điều khiển học tập"), callback: () => this.activateView() });
     this.addCommand({ id: "quick-review", name: L("Start quick review", "Bắt đầu ôn nhanh"), callback: async () => {
       await this.activateView();

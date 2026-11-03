@@ -229,9 +229,25 @@ class FlashcardManagerModal extends Modal {
     });
     const pager = this.results.createDiv({ cls: "pdl-manager-pager" });
     pager.createSpan({ text: L(`Showing ${this.page * this.pageSize + 1}–${this.page * this.pageSize + visible.length} of ${filtered.length}`, `Hiển thị ${this.page * this.pageSize + 1}–${this.page * this.pageSize + visible.length} / ${filtered.length}`) });
-    const nav = pager.createDiv();
-    const previous = nav.createEl("button", { text: L("Previous", "Trước") }); previous.disabled = this.page === 0; previous.onclick = () => { this.page--; this.renderResults(); };
-    const next = nav.createEl("button", { text: L("Next", "Sau") }); next.disabled = this.page >= pages - 1; next.onclick = () => { this.page++; this.renderResults(); };
+    const nav = pager.createDiv({ cls: "pdl-manager-pager-controls" });
+    const goTo = value => {
+      this.page = Math.max(0, Math.min(pages - 1, Math.floor(Number(value) || 1) - 1));
+      this.renderResults();
+    };
+    const addStep = (text, label, disabled, target) => {
+      const button = nav.createEl("button", { cls: "pdl-manager-pager-step", text, attr: { "aria-label": label, title: label } });
+      button.disabled = disabled;
+      button.onclick = () => goTo(target);
+    };
+    addStep("«", L("First page", "Trang đầu"), this.page === 0, 1);
+    addStep("‹", L("Previous page", "Trang trước"), this.page === 0, this.page);
+    nav.createSpan({ cls: "pdl-page-label", text: L("Page", "Trang") });
+    const jump = nav.createEl("input", { cls: "pdl-page-input", attr: { type: "number", min: "1", max: String(pages), value: String(this.page + 1), "aria-label": L("Go to page", "Đi đến trang") } });
+    jump.onchange = () => goTo(jump.value);
+    jump.onkeydown = event => { if (event.key === "Enter") { event.preventDefault(); goTo(jump.value); } };
+    nav.createSpan({ cls: "pdl-page-total", text: `/ ${pages}` });
+    addStep("›", L("Next page", "Trang sau"), this.page >= pages - 1, this.page + 2);
+    addStep("»", L("Last page", "Trang cuối"), this.page >= pages - 1, pages);
     this.updateBulkBar();
   }
 }

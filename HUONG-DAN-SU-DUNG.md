@@ -3,7 +3,7 @@
 **PDL Flashcard** giúp bạn tạo và ôn tập flashcard ngay trong Obsidian theo phương pháp
 lặp lại ngắt quãng. Plugin có thể nhờ AI đọc note để soạn thẻ nháp, hoặc bạn tự viết thẻ.
 
-> Phiên bản **1.0.8**. Yêu cầu Obsidian **1.13.0+**. Giao diện hỗ trợ tiếng Anh và tiếng Việt.
+> Phiên bản **1.0.9**. Yêu cầu Obsidian **1.13.0+**. Giao diện hỗ trợ tiếng Anh và tiếng Việt.
 
 ## 1. Cài đặt
 
@@ -95,7 +95,7 @@ Mở dashboard bằng icon brain trên ribbon hoặc command
 **PDL Flashcard: Open learning dashboard**.
 
 - **Quick Review**: thẻ đến hạn/mới.
-- **Custom Study**: ôn theo deck, tag, thẻ bị quên hoặc mức đánh giá gần nhất / từng được đánh giá (Again, Hard, Good, Easy).
+- **Custom Study**: tùy chỉnh một hoặc nhiều deck, tag, loại thẻ, trạng thái, rating, giới hạn và thứ tự.
 - **Again / Hard / Good / Easy**: tự đánh giá mức nhớ.
 - **Ctrl/Cmd + Z** hoặc nút hoàn tác: hủy lần đánh giá vừa rồi.
 - **Suspend**: ẩn thẻ khỏi mọi phiên.

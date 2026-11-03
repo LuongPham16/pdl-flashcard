@@ -2,6 +2,35 @@
 
 All notable changes to **PDL Flashcard** are recorded here.
 
+## [1.0.9] - 2026-11-03
+
+### Added
+
+- **Custom Study filter builder** — searchable multi-deck picker, tag, card type,
+  status, rating, limit and order.
+- Select any combination of decks, with select-all/clear actions and a 200-row
+  visible cap backed by search for large libraries.
+
+### Changed
+
+- Removed Custom Study presets, rating-match scope and added-date filters.
+- Review and summary views use a plain white background.
+- Deck selection is emphasised and the picker opens on demand instead of showing
+  a long checkbox wall.
+
+### Fixed
+
+- Progress bar could stretch into a giant blue overlay across the view and sidebar.
+- Obsidian review: replaced `navigator.platform` with the Platform API and replaced
+  direct heading elements with `Setting(...).setHeading()`.
+- Ribbon icon is constrained to 32×32 with an 18×18 SVG so it cannot expand the
+  sidebar.
+
+### Quality
+
+- **173 regression tests** pass.
+- Requires Obsidian **1.13.0+**.
+
 ## [1.0.8] - 2026-11-02
 
 ### Added

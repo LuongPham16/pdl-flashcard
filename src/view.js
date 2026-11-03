@@ -185,6 +185,7 @@ export class PDLFlashcardView extends ItemView {
     const root = this.containerEl.children[1];
     root.empty();
     root.addClass("pdl-flashcard");
+    root.addClass("pdl-dashboard-mode");
     const stats = this.getStats();
     const masthead = root.createDiv({ cls: "pdl-masthead" });
     const brand = masthead.createDiv({ cls: "pdl-brand" });
@@ -467,13 +468,13 @@ export class PDLFlashcardView extends ItemView {
     }
   }
 
-  startSession(pool = this.cards, forceAll = false) {
+  startSession(pool = this.cards, forceAll = false, overrideSize = null) {
     const now = Date.now();
     const today = dateKey(now);
     // Suspended and buried cards stay out of every queue, including cram sessions.
     const available = pool.filter(card => this.plugin.isCardAvailable(card, now));
     const skipped = pool.length - available.length;
-    const sessionSize = Math.max(1, Number(this.plugin.settings.sessionSize) || 12);
+    const sessionSize = Math.max(1, Number(overrideSize || this.plugin.settings.sessionSize) || 12);
     let selected = [];
     if (forceAll) {
       selected = available.slice(0, sessionSize);
@@ -578,7 +579,7 @@ export class PDLFlashcardView extends ItemView {
   renderReview() {
     if (this.index >= this.session.length) { this.renderSummary(); return; }
     const card = this.session[this.index];
-    const root = this.containerEl.children[1]; root.empty(); root.addClass("pdl-flashcard");
+    const root = this.containerEl.children[1]; root.empty(); root.addClass("pdl-flashcard"); root.addClass("pdl-review-mode");
     const bar = root.createDiv({ cls: "pdl-review-bar" });
     const back = bar.createEl("button", { cls: "pdl-icon-button", attr: { "aria-label": L("Exit review", "Thoát ôn tập") } }); setIcon(back, "x"); back.onclick = () => this.renderDashboard();
     // Undo only makes sense once at least one card in this session was graded.
@@ -1001,7 +1002,7 @@ export class PDLFlashcardView extends ItemView {
       this.plugin.settings.resumeSession = null;
       void this.plugin.saveData(this.plugin.settings);
     }
-    const root = this.containerEl.children[1]; root.empty(); root.addClass("pdl-flashcard");
+    const root = this.containerEl.children[1]; root.empty(); root.addClass("pdl-flashcard"); root.addClass("pdl-summary-mode");
     const box = root.createDiv({ cls: "pdl-summary" });
     const icon = box.createSpan({ cls: "pdl-summary-icon" }); setIcon(icon, "sparkles");
     box.createEl("h2", { text: L("Review complete", "Hoàn thành phiên ôn") });

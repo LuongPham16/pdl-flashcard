@@ -4,7 +4,7 @@
 highlighted passage — into editable flashcard decks, then review them with adaptive
 spaced repetition.
 
-> **Version 1.0.8** · requires Obsidian **1.13.0+** · desktop and mobile · submitted to
+> **Version 1.0.9** · requires Obsidian **1.13.0+** · desktop and mobile · submitted to
 > the Obsidian community plugin directory.
 
 ## Highlights
@@ -127,8 +127,8 @@ card type, choices, tags and deck title, so they can be re-imported.
 - **Undo** a grade with `Ctrl/Cmd+Z` or the undo button — schedule, log and streak roll back.
 - **Suspend** removes a card from every queue; **Bury** hides it until tomorrow.
 - **Leech detection** auto-suspends a card after repeated lapses.
-- **Custom study** by deck, tag, lapsed cards or latest/any rating (Again, Hard, Good,
-  Easy); keyboard-first controls.
+- **Custom study filter builder** — one or several decks, tag, type, status (new / due /
+  learning / suspended / ahead 7–30 days), rating, limit and order.
 - **Read aloud** from the card header. Cloze prompts speak masked blanks before reveal;
   MCQ reveals read every choice and the correct answer.
 
@@ -270,7 +270,7 @@ npm run deploy       # build + copy using .deploy.json
 ```
 
 The test suite runs against the **built bundle**, so rebuild after changing `src/` or
-`styles.css`. Current suite: **172 tests**.
+`styles.css`. Current suite: **173 tests**.
 
 ### Project layout
 

@@ -37,6 +37,7 @@ export class StorageMethods {
             sourceFile,
             sourcePath,
             deckTitle: nfcText(deck.title) || file.basename,
+            createdAt: item.createdAt || deck.createdAt || "",
             tags: Array.isArray(item.tags)
               ? item.tags.map(nfcText)
               : (Array.isArray(deck.tags) ? deck.tags.map(nfcText) : [])
@@ -162,6 +163,7 @@ export class StorageMethods {
       answer,
       choices,
       explanation: normalizeCardText(card.explanation).trim(),
+      createdAt: card.createdAt || new Date().toISOString(),
       tags: Array.isArray(card.tags) ? card.tags.map(tag => normalizeCardText(tag).trim()).filter(Boolean) : []
     };
   }

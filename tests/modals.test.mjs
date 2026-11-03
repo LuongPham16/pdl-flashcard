@@ -58,6 +58,13 @@ test("manager lists cards, searches, filters and paginates", async () => {
   assert.equal(modal.cards.length, 30);
   assert.equal(modal.contentEl.querySelectorAll(".pdl-manager-row").length, 26, "25 rows + header");
   assert.match(textOf(modal.contentEl), /Page 1 of 2/);
+  const jump = modal.contentEl.querySelector(".pdl-page-input");
+  jump.value = "2";
+  jump.onchange();
+  assert.match(textOf(modal.contentEl), /Page 2 of 2/);
+  assert.equal(modal.contentEl.querySelectorAll(".pdl-manager-row").length, 6, "five cards + header");
+  modal.page = 0;
+  modal.renderResults();
 
   modal.query = "question 7";
   modal.renderResults();
@@ -845,12 +852,12 @@ test("selection dialog hands the excerpt to the studio without auto-running AI",
   assert.deepEqual(scheduled, [150, 300], "deck scan and auto-generation are deferred");
 });
 
-test("custom study filters by lapses, tag and deck then starts a cram session", async () => {
+test("custom study filter builder combines tag, rating, status, type and deck", async () => {
   const { app, commands, lastModal, plugin } = await boot();
   seedDeck(app, "deck", [
-    { id: "a", question: "A", answer: "A", tags: ["ops"] },
-    { id: "b", question: "B", answer: "B", tags: ["dev"] },
-    { id: "c", question: "C", answer: "C", tags: ["ops"] }
+    { id: "a", type: "basic", question: "A", answer: "A", tags: ["ops"] },
+    { id: "b", type: "multiple-choice", question: "B", answer: "B", tags: ["dev"] },
+    { id: "c", type: "basic", question: "C", answer: "C", tags: ["ops"] }
   ]);
   plugin.settings.schedule = {
     a: { interval: 1, lapses: 2, due: 0 },
@@ -859,51 +866,68 @@ test("custom study filters by lapses, tag and deck then starts a cram session", 
   };
   plugin.settings.reviews = [{ cardId: "c", grade: 2, at: Date.now() }];
   const started = [];
-  plugin.getView = () => ({ startSession(pool, forceAll) { started.push({ pool, forceAll }); } });
+  plugin.getView = () => ({ startSession(pool, forceAll, size) { started.push({ pool, forceAll, size }); } });
 
   await commands["custom-study"].callback();
   await tick();
   const modal = lastModal();
   assert.equal(modal.cards.length, 3);
 
-  modal.mode = "lapsed";
+  modal.tag = "ops";
   modal.render();
   buttonByText(modal.contentEl, "Start Custom Session").onclick();
-  assert.deepEqual(started.at(-1).pool.map(card => card.id), ["a"]);
+  assert.deepEqual(started.at(-1).pool.map(card => card.id), ["a", "c"]);
   assert.equal(started.at(-1).forceAll, true);
 
-  modal.mode = "by_rating";
-  modal.selectedGrade = 2;
-  modal.ratingScope = "latest";
-  modal.render();
-  buttonByText(modal.contentEl, "Start Custom Session").onclick();
+  await commands["custom-study"].callback();
+  await tick();
+  const byLatest = lastModal();
+  byLatest.rating = "2";
+  byLatest.render();
+  buttonByText(byLatest.contentEl, "Start Custom Session").onclick();
   assert.deepEqual(started.at(-1).pool.map(card => card.id), ["b"], "latest Hard rating");
 
   await commands["custom-study"].callback();
   await tick();
-  const byAnyRating = lastModal();
-  byAnyRating.mode = "by_rating";
-  byAnyRating.selectedGrade = 2;
-  byAnyRating.ratingScope = "any";
-  byAnyRating.render();
-  buttonByText(byAnyRating.contentEl, "Start Custom Session").onclick();
-  assert.deepEqual(started.at(-1).pool.map(card => card.id), ["c"], "ever rated Hard");
-
-  await commands["custom-study"].callback();
-  await tick();
-  const byTag = lastModal();
-  byTag.mode = "by_tag";
-  byTag.render();
-  byTag.selectedTag = "ops";
-  buttonByText(byTag.contentEl, "Start Custom Session").onclick();
+  const byType = lastModal();
+  byType.type = "basic";
+  byType.render();
+  buttonByText(byType.contentEl, "Start Custom Session").onclick();
   assert.deepEqual(started.at(-1).pool.map(card => card.id), ["a", "c"]);
 
   await commands["custom-study"].callback();
   await tick();
   const byDeck = lastModal();
-  byDeck.selectedDeckPath = `${OUTPUT}/deck.md`;
+  byDeck.decks = new Set([`${OUTPUT}/deck.md`]);
+  byDeck.render();
   buttonByText(byDeck.contentEl, "Start Custom Session").onclick();
   assert.equal(started.at(-1).pool.length, 3);
+  assert.equal(started.at(-1).size, 3);
+});
+
+test("custom study can select several arbitrary decks", async () => {
+  const { app, commands, lastModal, plugin } = await boot();
+  seedDeck(app, "one", [{ id: "a", question: "A", answer: "A" }]);
+  seedDeck(app, "two", [{ id: "b", question: "B", answer: "B" }]);
+  seedDeck(app, "three", [{ id: "c", question: "C", answer: "C" }]);
+  const started = [];
+  plugin.getView = () => ({ startSession(pool, forceAll, size) { started.push({ pool, forceAll, size }); } });
+
+  await commands["custom-study"].callback();
+  await tick();
+  const modal = lastModal();
+  modal.decks = new Set([`${OUTPUT}/one.md`, `${OUTPUT}/three.md`]);
+  modal.render();
+  const deckTrigger = modal.contentEl.querySelector(".pdl-deck-trigger");
+  deckTrigger.onclick();
+  assert.equal(modal.contentEl.querySelectorAll(".pdl-study-check").length, 4, "all + three decks");
+  const search = modal.contentEl.querySelector(".pdl-deck-search");
+  search.value = "two";
+  search.oninput();
+  assert.equal(modal.contentEl.querySelectorAll(".pdl-study-check").length, 2, "all + filtered deck");
+  assert.match(textOf(modal.contentEl), /Đã chọn 2 deck|2 decks selected/);
+  buttonByText(modal.contentEl, "Start Custom Session").onclick();
+  assert.deepEqual(started.at(-1).pool.map(card => card.id), ["a", "c"]);
 });
 
 test("custom study reports when the criteria match nothing", async () => {
@@ -915,9 +939,8 @@ test("custom study reports when the criteria match nothing", async () => {
   await commands["custom-study"].callback();
   await tick();
   const modal = lastModal();
-  modal.mode = "by_tag";
+  modal.tag = "absent";
   modal.render();
-  modal.selectedTag = "absent";
   buttonByText(modal.contentEl, "Start Custom Session").onclick();
   assert.equal(started.length, 0);
   assert.ok(stub.notices.some(note => note.includes("No cards match")));
