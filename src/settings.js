@@ -101,6 +101,11 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
 
   display() { this.renderSettings(); }
 
+  hide() {
+    (this._keyTimers || []).forEach(timer => clearTimeout(timer));
+    this._keyTimers = [];
+  }
+
   update() { this.renderSettings(); }
 
   renderSettings() {
@@ -350,6 +355,9 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
           state.setText(filled ? L("key saved", "đã lưu key") : L("no key yet", "chưa có key"));
           state.toggleClass("is-set", filled);
         }, 400);
+        this._keyTimers = this._keyTimers || [];
+        this._keyTimers.push(timer);
+        if (this._keyTimers.length > 20) this._keyTimers = this._keyTimers.slice(-10);
       });
     });
 
