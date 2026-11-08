@@ -81,11 +81,27 @@ async function testConnection(provider, apiKey, endpoint, model) {
   const url = endpoint || (provider === "deepseek"
     ? "https://api.deepseek.com/chat/completions"
     : "https://api.openai.com/v1/chat/completions");
-  await requestJson(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: testModel, max_tokens: 1, messages: [{ role: "user", content: "hi" }] })
-  });
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
+  const messages = [{ role: "user", content: "hi" }];
+
+  // Newer OpenAI models reject `max_tokens` and ask for `max_completion_tokens`;
+  // older OpenAI-compatible servers only know the legacy name, so try both.
+  const payloads = provider === "deepseek"
+    ? [{ model: testModel, messages, max_tokens: 1 }]
+    : [{ model: testModel, messages, max_completion_tokens: 1 }, { model: testModel, messages, max_tokens: 1 }];
+
+  let lastError;
+  for (const payload of payloads) {
+    try {
+      await requestJson(url, { method: "POST", headers, body: JSON.stringify(payload) });
+      return;
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message || error);
+      if (!/max_tokens|max_completion_tokens/i.test(message)) throw error;
+    }
+  }
+  throw lastError;
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
