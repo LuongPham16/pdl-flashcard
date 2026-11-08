@@ -84,11 +84,17 @@ async function testConnection(provider, apiKey, endpoint, model) {
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
   const messages = [{ role: "user", content: "hi" }];
 
-  // Newer OpenAI models reject `max_tokens` and ask for `max_completion_tokens`;
-  // older OpenAI-compatible servers only know the legacy name, so try both.
-  const payloads = provider === "deepseek"
-    ? [{ model: testModel, messages, max_tokens: 1 }]
-    : [{ model: testModel, messages, max_completion_tokens: 1 }, { model: testModel, messages, max_tokens: 1 }];
+  // Some models reject one token-cap spelling and demand the other, so first try
+  // without a cap, then fall back to each parameter name in turn.
+  const payloads = [{ model: testModel, messages }];
+  if (provider === "deepseek") {
+    payloads.push({ model: testModel, messages, max_tokens: 1 });
+  } else {
+    payloads.push(
+      { model: testModel, messages, max_completion_tokens: 1 },
+      { model: testModel, messages, max_tokens: 1 }
+    );
+  }
 
   let lastError;
   for (const payload of payloads) {

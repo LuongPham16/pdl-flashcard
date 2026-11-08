@@ -4,6 +4,18 @@ import { DEFAULT_AI_PROMPTS } from "./constants.js";
 import { cleanAndParseJSON, normalizeCardText } from "./utils.js";
 import { L } from "./i18n.js";
 
+/** POST with the API error text preserved, so callers can decide to retry. */
+async function postJson(url, options) {
+  const response = await requestUrl({ url, ...options, throw: false });
+  if (response.status >= 400) {
+    const detail = response.json?.error?.message || response.json?.error || response.text || `HTTP ${response.status}`;
+    const error = new Error(String(detail).slice(0, 400));
+    error.status = response.status;
+    throw error;
+  }
+  return response;
+}
+
 /** Normalize every generated card before it reaches a draft or a deck. */
 function normalizeGeneratedCards(cards, allowedTags = null) {
   return (Array.isArray(cards) ? cards : []).map(card => {
@@ -158,23 +170,37 @@ export class AiMethods {
     } else {
       const actualEndpoint = endpoint || "https://api.openai.com/v1/chat/completions";
       const actualModel = model || "gpt-6-luna";
-      response = await requestUrl({
-        url: actualEndpoint,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: actualModel,
-          temperature: 0.3,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: "You are an expert active-recall flashcard designer. You MUST return valid JSON format ONLY." },
-            { role: "user", content: fullPrompt }
-          ]
-        })
-      });
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      };
+      const messages = [
+        { role: "system", content: "You are an expert active-recall flashcard designer. You MUST return valid JSON format ONLY." },
+        { role: "user", content: fullPrompt }
+      ];
+
+      // Newer reasoning models reject response_format (and some reject token caps).
+      // Retry once with the smallest payload before giving up.
+      try {
+        response = await postJson(actualEndpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model: actualModel,
+            temperature: 0.3,
+            response_format: { type: "json_object" },
+            messages
+          })
+        });
+      } catch (error) {
+        const message = String(error?.message || error);
+        if (!/response_format|json_object|max_tokens|max_completion_tokens|temperature/i.test(message)) throw error;
+        response = await postJson(actualEndpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ model: actualModel, messages })
+        });
+      }
 
       const content = response.json?.choices?.[0]?.message?.content;
       if (!content) throw new Error(L("The AI response did not contain valid content.", "Phản hồi AI không có nội dung hợp lệ."));
