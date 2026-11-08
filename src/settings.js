@@ -124,7 +124,7 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
   display() { this.renderSettings(); }
 
   hide() {
-    (this._keyTimers || []).forEach(timer => clearTimeout(timer));
+    (this._keyTimers || []).forEach(timer => window.clearTimeout(timer));
     this._keyTimers = [];
   }
 
@@ -366,8 +366,8 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
 
       let timer = null;
       input.addEventListener("input", () => {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(async () => {
+        if (timer) window.clearTimeout(timer);
+        timer = window.setTimeout(async () => {
           if (!ai.apiKeys) ai.apiKeys = {};
           ai.apiKeys[id] = input.value.trim();
           // keep the legacy single field in sync for older code paths
@@ -541,7 +541,8 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
   _renderFeedback(el) {
 
     /* ── PDL ecosystem: introduce the newest plugin first ── */
-    el.createEl("h3", { cls: "pdl-fb-eco-title", text: L("More from PDL", "Thêm từ PDL") });
+    const ecoTitle = new Setting(el).setName(L("More from PDL", "Thêm từ PDL")).setHeading();
+    ecoTitle.settingEl?.addClass("pdl-fb-eco-title");
     const eco = el.createDiv({ cls: "pdl-fb-eco" });
     const ecoHead = eco.createDiv({ cls: "pdl-fb-eco-head" });
     ecoHead.createEl("strong", { cls: "pdl-fb-eco-name", text: "PDL Habit" });

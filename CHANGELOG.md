@@ -2,6 +2,13 @@
 
 All notable changes to **PDL Flashcard** are recorded here.
 
+## [1.1.1] - 2026-11-08
+
+### Fixed
+
+- Settings tab no longer creates a raw h3; the PDL section heading uses the Setting heading API, which the plugin review requires.
+- Debounce timers use window.setTimeout / window.clearTimeout for popout-window compatibility.
+
 ## [1.1.0] - 2026-11-08
 
 ### Changed
