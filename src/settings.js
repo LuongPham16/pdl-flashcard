@@ -6,7 +6,7 @@ import { setLanguage, L } from "./i18n.js";
 /* ─── Model lists per provider (fallback when API fetch fails) ─── */
 const KNOWN_MODELS = {
   openai:   ["gpt-6-luna", "gpt-6.1-sol", "gpt-6-astra", "gpt-5.4-mini", "gpt-4.1-mini"],
-  gemini:   ["gemini-3.8-flash", "gemini-4-argon", "gemini-3.6-flash", "gemini-3.5-flash-lite"],
+  gemini:   ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-4-argon", "gemini-3.5-flash-lite"],
   deepseek: ["deepseek-flash", "deepseek-v4-pro"],
   claude:   ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5", "claude-fable-5-1"],
   custom:   [],
@@ -301,20 +301,27 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
 
     /* ── API Key + Test ── */
     heading(L("Authentication", "Xác thực"));
-    const keySetting = new Setting(el)
-      .setName("API Key")
-      .setDesc(L(`API key for ${providerLabel}.`, `API key cho ${providerLabel}.`));
-
-    keySetting.addText(t => {
-      t.inputEl.type = "password";
-      t.inputEl.setCssStyles({ width: "260px", fontFamily: "monospace" });
-      t.setPlaceholder(provider === "gemini" ? "AIzaSy..." : "sk-...")
-        .setValue(ai.apiKeys?.[provider] || "")
-        .onChange(async v => {
-          if (!ai.apiKeys) ai.apiKeys = {};
-          ai.apiKeys[provider] = v.trim();
-          if (provider === "openai") ai.apiKey = v.trim();
-          await this.plugin.saveData(this.plugin.settings);
+    const KEY_ORDER = ["openai", "gemini", "deepseek", "claude", "custom"];
+    KEY_ORDER.forEach(id => {
+      const label = { openai: "OpenAI", gemini: "Gemini (Google)", deepseek: "DeepSeek", claude: "Claude (Anthropic)", custom: L("Custom (OpenAI-compatible)", "Tùy chỉnh (tương thích OpenAI)") }[id] || id;
+      const isActive = id === provider;
+      new Setting(el)
+        .setName(isActive ? `${label} · ${L("active", "đang dùng")}` : label)
+        .setDesc(id === "custom"
+          ? L("Only needed for an OpenAI-compatible endpoint.", "Chỉ cần khi dùng endpoint tương thích OpenAI.")
+          : L("Kept separately per provider, so switching never asks for a key again.", "Lưu riêng từng nhà cung cấp nên đổi qua lại không phải nhập lại."))
+        .addText(t => {
+          t.inputEl.type = "password";
+          t.inputEl.setCssStyles({ width: "260px", fontFamily: "monospace" });
+          t.setPlaceholder(id === "gemini" ? "AIzaSy..." : "sk-...")
+            .setValue(ai.apiKeys?.[id] || "")
+            .onChange(async v => {
+              if (!ai.apiKeys) ai.apiKeys = {};
+              ai.apiKeys[id] = v.trim();
+              // keep the legacy single field in sync for older code paths
+              if (id === "openai") ai.apiKey = v.trim();
+              await this.plugin.saveData(this.plugin.settings);
+            });
         });
     });
 

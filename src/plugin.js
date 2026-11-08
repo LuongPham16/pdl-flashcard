@@ -122,6 +122,11 @@ class PDLFlashcardPlugin extends Plugin {
         this.settings.ai.models[provider] = DEFAULTS.ai.models[provider];
       }
     }
+    // The previous shipped Gemini default moved to 3.6 flash; only touch installs
+    // that still sit on the old default, so a deliberate 3.8 choice is kept.
+    if (this.settings.ai.models.gemini === "gemini-3.8-flash") {
+      this.settings.ai.models.gemini = DEFAULTS.ai.models.gemini;
+    }
     if (this.settings.ai.model === LEGACY_DEFAULT_MODELS.openai) {
       this.settings.ai.model = DEFAULTS.ai.models.openai;
     }

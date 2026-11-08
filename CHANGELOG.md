@@ -2,6 +2,16 @@
 
 All notable changes to **PDL Flashcard** are recorded here.
 
+## [1.1.0] - 2026-11-08
+
+### Changed
+
+- **AI keys are kept per provider.** The AI tab now shows one key field for OpenAI,
+  Gemini, DeepSeek, Claude and a custom endpoint at once; the active provider is
+  marked. Switching providers no longer asks you to paste a key again.
+- Gemini's default model is now `gemini-3.6-flash`; installs still on the previous
+  default are moved over on load.
+
 ## [1.0.9] - 2026-11-03
 
 ### Added

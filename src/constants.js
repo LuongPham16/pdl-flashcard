@@ -108,7 +108,7 @@ const DEFAULTS = {
     },
     models: {
       openai: "gpt-6-luna",
-      gemini: "gemini-3.8-flash",
+      gemini: "gemini-3.6-flash",
       deepseek: "deepseek-flash",
       claude: "claude-sonnet-5-5",
       custom: ""
