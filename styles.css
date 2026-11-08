@@ -2645,94 +2645,9 @@
   }
 }
 
-/* ── Feedback tab: compact channel rows + PDL ecosystem card ─────────── */
-.pdl-fb-intro {
-  margin: 0 0 10px;
-  color: var(--text-muted);
-  font-size: 12.5px;
-}
-
-.pdl-fb-list {
-  margin: 0 0 12px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--background-primary);
-}
-
-.pdl-fb-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 14px;
-  align-items: center;
-  padding: 10px 12px;
-}
-
-.pdl-fb-row + .pdl-fb-row {
-  border-top: 1px solid var(--background-modifier-border);
-}
-
-.pdl-fb-row:hover {
-  background: var(--background-modifier-hover);
-}
-
-.pdl-fb-row-meta {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.pdl-fb-kicker {
-  color: var(--text-faint);
-  font-family: var(--font-monospace);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: .09em;
-}
-
-.pdl-fb-row-title {
-  color: var(--text-normal);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.pdl-fb-row-desc {
-  color: var(--text-muted);
-  font-size: 11.5px;
-  line-height: 1.45;
-}
-
-.pdl-fb-support {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  padding: 10px 12px;
-  border: 1px dashed var(--background-modifier-border);
-  border-radius: 8px;
-}
-
-.pdl-fb-support-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.pdl-fb-support .pdl-fb-status {
-  min-height: 0;
-}
-
-.pdl-fb-row .pdl-fb-secondary,
-.pdl-fb-support .pdl-fb-secondary,
-.pdl-fb-eco .pdl-fb-secondary {
-  min-height: 30px;
-  padding: 0 12px;
-  font-size: 12px;
-}
-
+/* ── Feedback tab: PDL ecosystem card ────────────────────────────────── */
 .pdl-fb-eco-title {
-  margin: 20px 0 10px;
+  margin: 0 0 10px;
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 650;
@@ -2743,6 +2658,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin-bottom: 22px;
   padding: 12px 14px;
   border: 1px solid var(--background-modifier-border);
   border-left: 3px solid var(--interactive-accent);
@@ -2791,14 +2707,18 @@
   margin-top: 2px;
 }
 
+.pdl-fb-eco-actions .pdl-fb-secondary {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
 .pdl-fb-eco-hint {
   color: var(--text-faint);
   font-size: 11px;
 }
 
-@media (max-width: 620px) {
-  .pdl-fb-row,
-  .pdl-fb-support {
-    grid-template-columns: 1fr;
-  }
+/* tighten the gap between the ecosystem card and the hero below it */
+.pdl-fb-eco + .pdl-fb-hero {
+  padding-top: 6px;
 }
