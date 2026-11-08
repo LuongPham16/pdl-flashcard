@@ -528,55 +528,74 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
       `Platform: ${platform}`
     ].join("\n");
 
-    const hero = el.createDiv({ cls: "pdl-fb-hero" });
-    hero.createDiv({ cls: "pdl-fb-emoji", text: "💌" });
-    const heroTitle = new Setting(hero).setName(L("Feedback & support", "Phản hồi & hỗ trợ")).setHeading();
-    heroTitle.settingEl?.addClass("pdl-fb-title");
-    hero.createEl("p", {
+    el.createEl("p", {
+      cls: "pdl-fb-intro",
       text: L(
-        "Pick the channel that suits you. Telegram is best for a quick question; GitHub is best for a reproducible bug or a feature request.",
-        "Chọn kênh phù hợp. Telegram phù hợp để hỏi nhanh; GitHub phù hợp để báo lỗi có bước tái hiện hoặc đề xuất tính năng."
-      ),
-      cls: "pdl-fb-desc"
+        "Quick question → Telegram. Reproducible bug or feature request → GitHub.",
+        "Hỏi nhanh → Telegram. Báo lỗi có bước tái hiện hoặc đề xuất tính năng → GitHub."
+      )
     });
 
-    const grid = el.createDiv({ cls: "pdl-fb-contact-grid" });
-    const telegramCard = grid.createDiv({ cls: "pdl-fb-contact is-telegram" });
-    telegramCard.createSpan({ cls: "pdl-fb-contact-kicker", text: L("FASTEST", "NHANH NHẤT") });
-    const telegramTitle = new Setting(telegramCard).setName("Telegram").setHeading();
-    telegramTitle.settingEl?.addClass("pdl-fb-contact-title");
-    telegramCard.createEl("p", { text: L("Message me directly. Good for questions, ideas and quick bug reports.", "Nhắn trực tiếp. Phù hợp câu hỏi, ý tưởng và báo lỗi nhanh.") });
-    telegramCard.createEl("strong", { cls: "pdl-fb-handle", text: TELEGRAM_HANDLE });
-    const telegramBtn = telegramCard.createEl("button", { cls: "pdl-fb-telegram", text: L("Open Telegram", "Mở Telegram") });
-    telegramBtn.onclick = () => window.open(TELEGRAM, "_blank", "noopener");
-    const telegramLink = telegramCard.createEl("a", { text: TELEGRAM, href: TELEGRAM, cls: "pdl-fb-contact-link" });
-    telegramLink.setAttr("target", "_blank");
-    telegramLink.setAttr("rel", "noopener");
+    const list = el.createDiv({ cls: "pdl-fb-list" });
 
-    const githubCard = grid.createDiv({ cls: "pdl-fb-contact is-github" });
-    githubCard.createSpan({ cls: "pdl-fb-contact-kicker", text: L("BUGS & FEATURES", "LỖI & TÍNH NĂNG") });
-    const githubTitle = new Setting(githubCard).setName("GitHub Issues").setHeading();
-    githubTitle.settingEl?.addClass("pdl-fb-contact-title");
-    githubCard.createEl("p", { text: L("Best for reproducible bugs, screenshots and feature requests that can be tracked.", "Phù hợp báo lỗi có bước tái hiện, ảnh chụp và đề xuất cần theo dõi.") });
-    const githubBtn = githubCard.createEl("button", { cls: "pdl-fb-secondary", text: L("Open GitHub issue", "Mở issue GitHub") });
+    /* Telegram */
+    const telegramRow = list.createDiv({ cls: "pdl-fb-row" });
+    const telegramMeta = telegramRow.createDiv({ cls: "pdl-fb-row-meta" });
+    telegramMeta.createSpan({ cls: "pdl-fb-kicker", text: L("FASTEST", "NHANH NHẤT") });
+    telegramMeta.createEl("strong", { cls: "pdl-fb-row-title", text: `Telegram · ${TELEGRAM_HANDLE}` });
+    telegramMeta.createSpan({ cls: "pdl-fb-row-desc", text: L("Questions, ideas and quick bug reports.", "Câu hỏi, ý tưởng và báo lỗi nhanh.") });
+    const telegramBtn = telegramRow.createEl("button", { cls: "pdl-fb-secondary", text: L("Open Telegram", "Mở Telegram") });
+    telegramBtn.onclick = () => window.open(TELEGRAM, "_blank", "noopener");
+
+    /* GitHub */
+    const githubRow = list.createDiv({ cls: "pdl-fb-row" });
+    const githubMeta = githubRow.createDiv({ cls: "pdl-fb-row-meta" });
+    githubMeta.createSpan({ cls: "pdl-fb-kicker", text: L("TRACKABLE", "THEO DÕI ĐƯỢC") });
+    githubMeta.createEl("strong", { cls: "pdl-fb-row-title", text: "GitHub Issues" });
+    githubMeta.createSpan({ cls: "pdl-fb-row-desc", text: L("Bugs with screenshots and feature requests.", "Lỗi kèm ảnh chụp và đề xuất tính năng.") });
+    const githubBtn = githubRow.createEl("button", { cls: "pdl-fb-secondary", text: L("New issue", "Tạo issue") });
     githubBtn.onclick = () => {
       const body = `### What happened?\n\n\n### Steps to reproduce\n1. \n2. \n3. \n\n### Expected result\n\n\n---\n${diagnostics}`;
       window.open(`${GITHUB}?title=${encodeURIComponent("[PDL Flashcard] ")}&body=${encodeURIComponent(body)}`, "_blank", "noopener");
     };
 
-    const support = el.createDiv({ cls: "pdl-fb-diagnostics" });
-    const supportCopy = support.createDiv();
-    supportCopy.createEl("strong", { text: L("Support information", "Thông tin hỗ trợ") });
-    supportCopy.createSpan({ text: L("Copy the plugin, Obsidian and platform versions when reporting a bug.", "Sao chép phiên bản plugin, Obsidian và nền tảng khi báo lỗi.") });
-    const status = support.createDiv({ cls: "pdl-fb-status" });
-    const copyBtn = support.createEl("button", { cls: "pdl-fb-secondary", text: L("Copy support info", "Sao chép thông tin hỗ trợ") });
+    /* Support information */
+    const support = el.createDiv({ cls: "pdl-fb-support" });
+    const supportMeta = support.createDiv({ cls: "pdl-fb-row-meta" });
+    supportMeta.createEl("strong", { cls: "pdl-fb-row-title", text: L("Support information", "Thông tin hỗ trợ") });
+    supportMeta.createSpan({ cls: "pdl-fb-row-desc", text: diagnostics.split("\n").join(" · ") });
+    const supportActions = support.createDiv({ cls: "pdl-fb-support-actions" });
+    const status = supportActions.createSpan({ cls: "pdl-fb-status" });
+    const copyBtn = supportActions.createEl("button", { cls: "pdl-fb-secondary", text: L("Copy", "Sao chép") });
     copyBtn.onclick = async () => {
       try {
         await navigator.clipboard.writeText(diagnostics);
-        status.setText(L("Copied support information.", "Đã sao chép thông tin hỗ trợ."));
+        status.setText(L("Copied.", "Đã sao chép."));
       } catch (_) {
-        status.setText(L("Could not copy automatically. Select the text and copy it manually.", "Không sao chép tự động được. Hãy bôi đen và sao chép thủ công."));
+        status.setText(L("Copy manually.", "Hãy sao chép thủ công."));
       }
     };
+
+    /* PDL ecosystem */
+    el.createEl("h3", { cls: "pdl-fb-eco-title", text: L("More from PDL", "Thêm từ PDL") });
+    const eco = el.createDiv({ cls: "pdl-fb-eco" });
+    const ecoHead = eco.createDiv({ cls: "pdl-fb-eco-head" });
+    ecoHead.createEl("strong", { cls: "pdl-fb-eco-name", text: "PDL Habit" });
+    ecoHead.createSpan({ cls: "pdl-fb-pill", text: L("NEW", "MỚI") });
+    eco.createEl("p", {
+      cls: "pdl-fb-eco-desc",
+      text: L(
+        "A calm, Markdown-first habit tracker: flexible schedules, a month calendar and focused insights.",
+        "Trình theo dõi thói quen Markdown-first: lịch linh hoạt, lịch tháng và phần phân tích gọn gàng."
+      )
+    });
+    eco.createSpan({
+      cls: "pdl-fb-eco-meta",
+      text: L("Obsidian 1.5+ · free · English / Tiếng Việt · data stays in your vault", "Obsidian 1.5+ · miễn phí · Anh / Việt · dữ liệu nằm trong vault")
+    });
+    const ecoActions = eco.createDiv({ cls: "pdl-fb-eco-actions" });
+    const ecoBtn = ecoActions.createEl("button", { cls: "pdl-fb-secondary", text: L("View on GitHub", "Xem trên GitHub") });
+    ecoBtn.onclick = () => window.open("https://github.com/LuongPham16/pdl-habit", "_blank", "noopener");
+    ecoActions.createSpan({ cls: "pdl-fb-eco-hint", text: L("Install: Community plugins → Browse → “PDL Habit”", "Cài: Community plugins → Browse → “PDL Habit”") });
   }
 }
