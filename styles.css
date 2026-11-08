@@ -2545,3 +2545,102 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* -- AI keys: compact per-provider list in Settings ? AI --------------- */
+.pdl-key-hint {
+  margin: 2px 2px 10px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.pdl-key-list {
+  margin: 0 0 16px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--background-primary);
+}
+
+.pdl-key-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 320px);
+  gap: 18px;
+  align-items: center;
+  padding: 9px 12px;
+}
+
+.pdl-key-row + .pdl-key-row {
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.pdl-key-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.pdl-key-row.is-active {
+  box-shadow: inset 3px 0 0 var(--interactive-accent);
+  background: var(--background-modifier-hover);
+}
+
+.pdl-key-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pdl-key-name-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pdl-key-name {
+  color: var(--text-normal);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pdl-key-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.pdl-key-state {
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.pdl-key-state.is-set {
+  color: var(--text-success, #22c55e);
+}
+
+.pdl-key-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  font-family: var(--font-monospace);
+  font-size: 12.5px;
+}
+
+.pdl-key-input:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+@media (max-width: 620px) {
+  .pdl-key-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}

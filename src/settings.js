@@ -301,28 +301,56 @@ export class PDLFlashcardSettingTab extends PluginSettingTab {
 
     /* ── API Key + Test ── */
     heading(L("Authentication", "Xác thực"));
+    el.createEl("p", {
+      cls: "pdl-key-hint",
+      text: L("Each provider keeps its own key: enter it once, then switch freely.",
+        "Mỗi nhà cung cấp giữ key riêng: nhập một lần, sau đó đổi qua lại thoải mái.")
+    });
+
     const KEY_ORDER = ["openai", "gemini", "deepseek", "claude", "custom"];
+    const KEY_LABEL = {
+      openai: "OpenAI",
+      gemini: "Gemini (Google)",
+      deepseek: "DeepSeek",
+      claude: "Claude (Anthropic)",
+      custom: L("Custom (OpenAI-compatible)", "Tùy chỉnh (tương thích OpenAI)")
+    };
+    const keyList = el.createDiv({ cls: "pdl-key-list" });
+
     KEY_ORDER.forEach(id => {
-      const label = { openai: "OpenAI", gemini: "Gemini (Google)", deepseek: "DeepSeek", claude: "Claude (Anthropic)", custom: L("Custom (OpenAI-compatible)", "Tùy chỉnh (tương thích OpenAI)") }[id] || id;
-      const isActive = id === provider;
-      new Setting(el)
-        .setName(isActive ? `${label} · ${L("active", "đang dùng")}` : label)
-        .setDesc(id === "custom"
-          ? L("Only needed for an OpenAI-compatible endpoint.", "Chỉ cần khi dùng endpoint tương thích OpenAI.")
-          : L("Kept separately per provider, so switching never asks for a key again.", "Lưu riêng từng nhà cung cấp nên đổi qua lại không phải nhập lại."))
-        .addText(t => {
-          t.inputEl.type = "password";
-          t.inputEl.setCssStyles({ width: "260px", fontFamily: "monospace" });
-          t.setPlaceholder(id === "gemini" ? "AIzaSy..." : "sk-...")
-            .setValue(ai.apiKeys?.[id] || "")
-            .onChange(async v => {
-              if (!ai.apiKeys) ai.apiKeys = {};
-              ai.apiKeys[id] = v.trim();
-              // keep the legacy single field in sync for older code paths
-              if (id === "openai") ai.apiKey = v.trim();
-              await this.plugin.saveData(this.plugin.settings);
-            });
-        });
+      const active = id === provider;
+      const saved = String(ai.apiKeys?.[id] || "").trim().length > 0;
+      const row = keyList.createDiv({ cls: `pdl-key-row${active ? " is-active" : ""}` });
+
+      const meta = row.createDiv({ cls: "pdl-key-meta" });
+      const nameRow = meta.createDiv({ cls: "pdl-key-name-row" });
+      nameRow.createSpan({ cls: "pdl-key-name", text: KEY_LABEL[id] });
+      if (active) nameRow.createSpan({ cls: "pdl-key-badge", text: L("active", "đang dùng") });
+      const state = meta.createSpan({
+        cls: `pdl-key-state${saved ? " is-set" : ""}`,
+        text: saved ? L("key saved", "đã lưu key") : L("no key yet", "chưa có key")
+      });
+
+      const input = row.createEl("input", {
+        cls: "pdl-key-input",
+        attr: { type: "password", placeholder: id === "gemini" ? "AIzaSy..." : "sk-...", "aria-label": `${KEY_LABEL[id]} API key` }
+      });
+      input.value = ai.apiKeys?.[id] || "";
+
+      let timer = null;
+      input.addEventListener("input", () => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(async () => {
+          if (!ai.apiKeys) ai.apiKeys = {};
+          ai.apiKeys[id] = input.value.trim();
+          // keep the legacy single field in sync for older code paths
+          if (id === "openai") ai.apiKey = input.value.trim();
+          await this.plugin.saveData(this.plugin.settings);
+          const filled = ai.apiKeys[id].length > 0;
+          state.setText(filled ? L("key saved", "đã lưu key") : L("no key yet", "chưa có key"));
+          state.toggleClass("is-set", filled);
+        }, 400);
+      });
     });
 
     /* status badge */
