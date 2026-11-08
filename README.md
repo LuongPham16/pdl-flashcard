@@ -4,7 +4,7 @@
 highlighted passage — into editable flashcard decks, then review them with adaptive
 spaced repetition.
 
-> **Version 1.1.1** · requires Obsidian **1.13.0+** · desktop and mobile · submitted to
+> **Version 1.1.2** · requires Obsidian **1.13.0+** · desktop and mobile · submitted to
 > the Obsidian community plugin directory.
 
 ## Highlights
@@ -304,6 +304,14 @@ tests/                  Node test suites and Obsidian stub
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports and focused pull requests are welcome.
+
+## Privacy and security
+
+- **API keys** live in the plugin's `data.json` inside your vault. They are sent only to the provider you selected (or to your custom endpoint).
+- **Generation** sends the note text you choose (up to 50,000 characters) to that provider. No telemetry, no analytics, nothing else leaves the device.
+- **Backups** in `<plugin folder>/backups/` never contain API keys; older backups are scrubbed on first load after this release.
+- **CSV export** prefixes values that start with `=`, `+`, `-` or `@` so spreadsheets treat them as text.
+- The plugin only touches files inside your vault, through Obsidian's vault API.
 
 ## License
 

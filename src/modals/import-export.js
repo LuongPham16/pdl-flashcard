@@ -139,15 +139,22 @@ class FlashcardExportImportModal extends Modal {
         card.deckTitle || ""
       ]);
       if (format === "csv") {
+        // Guard against spreadsheet formulas (CSV injection) in card text.
+        const csvCell = value => {
+          const text = String(value ?? "");
+          const guarded = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+          return `"${guarded.replace(/"/g, '""')}"`;
+        };
         let csv = "Question,Answer,Type,Explanation,Tags,DeckTitle\n";
         targetCards.forEach(c => {
-          const q = `"${(c.question || "").replace(/"/g, '""')}"`;
-          const a = `"${(c.answer || "").replace(/"/g, '""')}"`;
-          const type = `"${c.type || "basic"}"`;
-          const exp = `"${(c.explanation || "").replace(/"/g, '""')}"`;
-          const tags = `"${(c.tags || []).join(",")}"`;
-          const deck = `"${(c.deckTitle || "").replace(/"/g, '""')}"`;
-          csv += `${q},${a},${type},${exp},${tags},${deck}\n`;
+          csv += [
+            csvCell(c.question),
+            csvCell(c.answer),
+            csvCell(c.type || "basic"),
+            csvCell(c.explanation),
+            csvCell((c.tags || []).join(",")),
+            csvCell(c.deckTitle)
+          ].join(",") + "\n";
         });
         this.downloadFile("pdl-flashcards-export.csv", csv, "text/csv");
       } else if (format === "xlsx") {

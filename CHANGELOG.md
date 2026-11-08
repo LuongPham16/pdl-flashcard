@@ -2,6 +2,17 @@
 
 All notable changes to **PDL Flashcard** are recorded here.
 
+## [1.1.2] - 2026-11-08
+
+### Security
+
+- Daily backups no longer copy API keys; older backup files are scrubbed once on load.
+- CSV export neutralises spreadsheet formulas, so a card starting with =, +, -, @, tab or CR cannot run in Excel or Sheets.
+
+### Docs
+
+- README gains a privacy and security section (what is stored, what is sent to the provider).
+
 ## [1.1.1] - 2026-11-08
 
 ### Fixed

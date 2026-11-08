@@ -200,6 +200,28 @@ class PDLFlashcardPlugin extends Plugin {
     await this.autoBackup();
   }
 
+  /** Older builds stored API keys in backups; strip them once. */
+  async sanitizeOldBackups(backupDir) {
+    if (this.settings.securityBackupsSanitized === 2) return;
+    try {
+      const list = await this.app.vault.adapter.list(backupDir);
+      for (const file of list.files.filter(name => name.endsWith('.json'))) {
+        try {
+          const raw = await this.app.vault.adapter.read(file);
+          const data = JSON.parse(raw);
+          if (!data || !data.ai) continue;
+          const hadKey = data.ai.apiKey || Object.values(data.ai.apiKeys || {}).some(Boolean);
+          if (!hadKey) continue;
+          delete data.ai.apiKey;
+          delete data.ai.apiKeys;
+          await this.app.vault.adapter.write(file, JSON.stringify(data, null, 2));
+        } catch (_) { /* unreadable backup: leave it alone */ }
+      }
+      this.settings.securityBackupsSanitized = 2;
+      await this.saveData(this.settings);
+    } catch (_) { /* never block startup on this */ }
+  }
+
   async autoBackup() {
     try {
       const backupDir = normalizePath(this.manifest.dir + "/backups");
@@ -209,8 +231,16 @@ class PDLFlashcardPlugin extends Plugin {
       const now = new Date();
       const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       const backupFile = normalizePath(`${backupDir}/data-${dateStr}.json`);
-      const content = JSON.stringify(this.settings, null, 2);
+      // Never copy API keys into backups: they may be synced or shared.
+      const snapshot = JSON.parse(JSON.stringify(this.settings));
+      if (snapshot.ai) {
+        delete snapshot.ai.apiKey;
+        delete snapshot.ai.apiKeys;
+      }
+      const content = JSON.stringify(snapshot, null, 2);
       await this.app.vault.adapter.write(backupFile, content);
+
+      await this.sanitizeOldBackups(backupDir);
 
       const list = await this.app.vault.adapter.list(backupDir);
       const files = list.files.filter(f => f.endsWith('.json')).sort();
